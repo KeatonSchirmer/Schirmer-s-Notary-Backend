@@ -20,7 +20,8 @@ allowed_origins = [
     "http://localhost:3001",
     "capacitor://localhost",   
     "http://localhost",         
-    "http://localhost:3000"      
+    "http://localhost:3000",
+    'https://schirmer-s-notary-admin-site.onrender.com'      
 ]
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": allowed_origins}}, allow_headers=["Content-Type", "Authorization", "x-user-id"])
 app.config['SECRET_KEY'] = 'DaylynDavis2!'

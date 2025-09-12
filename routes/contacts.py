@@ -1,5 +1,5 @@
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from models.message import ClientContact
 from models.job import JobRequest
 
@@ -47,7 +47,7 @@ def get_contacts_visible_to_admin():
 
 @clients_bp.route('/<int:client_id>', methods=['GET', 'OPTIONS'])
 def get_client(client_id):
-    if flask.request.method == 'OPTIONS':
+    if request.method == 'OPTIONS':
         return jsonify({'ok': True}), 200
     client = ClientContact.query.get(client_id)
     if not client:
