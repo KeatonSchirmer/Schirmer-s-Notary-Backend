@@ -52,7 +52,6 @@ app.register_blueprint(finances_bp, url_prefix="/finances")
 
 def create_admin():
     with app.app_context():
-        # Check if admin already exists
         admin = User.query.filter_by(email="keasch1589@gmail.com").first()
         if not admin:
             admin = User(
