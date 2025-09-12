@@ -2,7 +2,7 @@ from database.db import db
 
 class User(db.Model):
 
-    __tablename__ = 'user'
+    __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
     is_admin = db.Column(db.Boolean, default=False)
