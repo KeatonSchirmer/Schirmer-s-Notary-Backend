@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, request
 from models.message import ClientContact
 from models.job import JobRequest
-from models import db
+from database.db import db
 
 clients_bp = Blueprint('contacts', __name__)
 
