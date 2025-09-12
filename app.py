@@ -25,7 +25,8 @@ allowed_origins = [
 ]
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": allowed_origins}}, allow_headers=["Content-Type", "Authorization", "x-user-id"])
 app.config['SECRET_KEY'] = 'DaylynDavis2!'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:DaylynDavis2!@localhost:3306/notary'  # Update as needed
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:DaylynDavis2!@localhost:3306/notary'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://schirmersnotary_user:lRpAqU1MOPm0BvC6TQGH9jQo1sCxKWeH@dpg-d323vmjipnbc73csma5g-a:5432/schirmersnotary'  # Update with your Render PostgreSQL credentials
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
