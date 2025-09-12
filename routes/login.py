@@ -1,13 +1,8 @@
 from flask import Blueprint, request, jsonify, session
 from werkzeug.security import check_password_hash, generate_password_hash
 from database.db import db
+from models.user import User
 
-class User(db.Model):
-    __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
-    is_premium = db.Column(db.Boolean, default=False)
 
 login_bp = Blueprint('login', __name__)
 
