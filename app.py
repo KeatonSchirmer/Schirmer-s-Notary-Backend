@@ -13,6 +13,8 @@ from routes.auth import auth_bp
 from routes.mileage import mileage_bp
 from routes.finances import finances_bp
 from database.db import db
+from models.user import User
+from werkzeug.security import generate_password_hash
 
 app = Flask(__name__)
 allowed_origins = [
@@ -48,7 +50,26 @@ app.register_blueprint(contact_bp, url_prefix='/contact')
 app.register_blueprint(mileage_bp, url_prefix="/mileage")
 app.register_blueprint(finances_bp, url_prefix="/finances")
 
+def create_admin():
+    with app.app_context():
+        # Check if admin already exists
+        admin = User.query.filter_by(email="admin@email.com").first()
+        if not admin:
+            admin = User(
+                email="keasch1589@gmail.com",
+                is_admin=True,
+                name="Admin Name",
+                password_hash=generate_password_hash("Thunder1589@"),
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("Admin user created.")
+        else:
+            print("Admin user already exists.")
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        create_admin()
     app.run(host='0.0.0.0', port=5000, debug=True)
