@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from routes.jobs import jobs_bp
 from routes.service import service_bp
@@ -15,6 +15,8 @@ from routes.finances import finances_bp
 from database.db import db
 from models.user import User
 from werkzeug.security import generate_password_hash
+import logging
+
 
 app = Flask(__name__)
 allowed_origins = [
@@ -23,6 +25,9 @@ allowed_origins = [
     "*",
     "http://schirmersnotary.com",
     "http://www.schirmersnotary.com",
+    "capacitor://localhost",
+    "ionic://localhost",
+    "http://localhost",
 ]
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": allowed_origins}}, allow_headers=["Content-Type", "Authorization", "x-user-id"])
 app.config['SECRET_KEY'] = 'DaylynDavis2!'
@@ -31,6 +36,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://schirmersnotary_u
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+@app.before_request
+def log_origin():
+    origin = request.headers.get('Origin')
+    logging.info(f"Request Origin: {origin}")
 
 @app.route('/')
 def index():
@@ -49,23 +58,23 @@ app.register_blueprint(contact_bp, url_prefix='/contact')
 app.register_blueprint(mileage_bp, url_prefix="/mileage")
 app.register_blueprint(finances_bp, url_prefix="/finances")
 
-def create_admin():
-    with app.app_context():
-        admin = User.query.filter_by(email="keasch1589@gmail.com").first()
-        if not admin:
-            admin = User(
-                email="keasch1589@gmail.com",
-                is_admin=True,
-                name="Admin Name",
-                password_hash=generate_password_hash("Thunder1589@"),
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print("Admin user created.")
-        else:
-            print("Admin user already exists.")
+#def create_admin():
+#    with app.app_context():
+#        admin = User.query.filter_by(email="keasch1589@gmail.com").first()
+#        if not admin:
+#            admin = User(
+#                email="keasch1589@gmail.com",
+#                is_admin=True,
+#                name="Admin Name",
+#                password_hash=generate_password_hash("Thunder1589@"),
+#            )
+#            db.session.add(admin)
+#            db.session.commit()
+#            print("Admin user created.")
+#        else:
+#            print("Admin user already exists.")
 
 
 with app.app_context():
     db.create_all()
-    create_admin()
+#    create_admin()
