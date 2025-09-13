@@ -17,7 +17,8 @@ def add_mileage():
             user_id=user_id,
             miles=data.get('miles'),
             purpose=data.get('purpose'),
-            date=datetime.strptime(data.get('date'), "%Y-%m-%d") if data.get('date') else datetime.utcnow()
+            date=datetime.strptime(data.get('date'), "%Y-%m-%d") if data.get('date') else datetime.utcnow(),
+            time=data.get('time')
         )
         db.session.add(mileage)
         db.session.commit()
@@ -39,6 +40,7 @@ def get_mileage():
                 {
                     "id": m.id,
                     "date": m.date.strftime("%Y-%m-%d"),
+                    "time": m.time,
                     "miles": m.miles,
                     "purpose": m.purpose,
                 }

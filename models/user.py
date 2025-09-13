@@ -26,6 +26,8 @@ class User(db.Model):
     profile_pic_url = db.Column(db.String(255))
     password_hash = db.Column(db.String(255))
     two_factor_enabled = db.Column(db.Boolean, default=False)
+    two_factor_code = db.Column(db.String(6), nullable=True)
+    two_factor_code_created = db.Column(db.DateTime, nullable=True)
     home_address = db.Column(db.String(255), nullable=True)
     business_name = db.Column(db.String(255), nullable=True)
     billing_address = db.Column(db.String(255), nullable=True)

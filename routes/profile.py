@@ -3,6 +3,11 @@ from models.user import User
 from database.db import db
 import traceback
 from datetime import datetime
+import random
+import string
+import smtplib
+from datetime import datetime, timedelta
+from email.mime.text import MIMEText
 
 profile_bp = Blueprint('profile', __name__, template_folder='frontend/templates')
 
@@ -111,3 +116,60 @@ def update_profile():
         "special_needs": getattr(user, "special_needs", None),
         "payment_method": getattr(user, "payment_method", None)
     })
+
+@profile_bp.route('/2fa-request', methods=['POST'])
+def request_2fa():
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    code = ''.join(random.choices(string.digits, k=6))
+    user.two_factor_code = code
+    user.two_factor_code_created = datetime.utcnow()
+    db.session.commit()
+
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    smtp_user = 'schirmer.nikolas@gmail.com'
+    smtp_password = 'cgyqzlbjwrftwqok'
+
+    subject = "Your 2FA Confirmation Code"
+    body = f"Your confirmation code is: {code}"
+
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = smtp_user
+    msg["To"] = user.email
+
+    try:
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.sendmail(smtp_user, user.email, msg.as_string())
+        server.quit()
+    except Exception as e:
+        print("Failed to send email:", e)
+
+    return jsonify({"message": "Confirmation code sent to your email."}), 200
+
+@profile_bp.route('/2fa-confirm', methods=['POST'])
+def confirm_2fa():
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
+    code = request.json.get('code')
+    user = User.query.get(user_id)
+    if not user or not code:
+        return jsonify({"error": "User not found or code missing"}), 400
+
+    if not user.two_factor_code_created or \
+       datetime.utcnow() - user.two_factor_code_created > timedelta(minutes=25):
+        return jsonify({"error": "Code expired"}), 400
+
+    if user.two_factor_code == code:
+        user.two_factor_enabled = True
+        user.two_factor_code = None
+        user.two_factor_code_created = None
+        db.session.commit()
+        return jsonify({"success": True}), 200
+    else:
+        return jsonify({"error": "Invalid code"}), 400

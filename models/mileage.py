@@ -11,6 +11,7 @@ class Mileage(db.Model):
     miles = Column(Float, nullable=False)
     purpose = Column(String(255), nullable=True)  # e.g., "Client Meeting", "Office Visit"
     created_at = Column(DateTime, default=datetime.utcnow)
+    time = db.Column(db.String(8), nullable=True)
 
     def __repr__(self):
         return f"<Mileage {self.miles} miles on {self.date}>"

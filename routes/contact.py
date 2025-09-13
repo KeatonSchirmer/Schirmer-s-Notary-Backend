@@ -22,7 +22,7 @@ def send_contact_email():
     # SMTP config (example for Gmail)
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    smtp_user = 'schirmer.nikolas@gmail.com'  # Your Gmail address
+    smtp_user = 'schirmer.nikolas@gmail.com'
     smtp_pass = 'cgyqzlbjwrftwqok'
 
     msg = MIMEMultipart()
