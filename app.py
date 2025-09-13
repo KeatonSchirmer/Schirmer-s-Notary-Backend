@@ -20,8 +20,7 @@ import logging
 
 
 app = Flask(__name__)
-db.init_app(app)
-migrate = Migrate(app, db)
+
 allowed_origins = [
     'https://schirmer-s-notary-admin-site.onrender.com',
     'https://schirmer-s-notary-main-site.onrender.com',
@@ -36,7 +35,7 @@ allowed_origins = [
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": allowed_origins}}, allow_headers=["Content-Type", "Authorization", "x-user-id"])
 app.config['SECRET_KEY'] = 'DaylynDavis2!'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:DaylynDavis2!@localhost:3306/notary'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://schirmersnotary_user:lRpAqU1MOPm0BvC6TQGH9jQo1sCxKWeH@dpg-d323vmjipnbc73csma5g-a:5432/schirmersnotary'  # Update with your Render PostgreSQL credentials
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://schirmersnotary_user:lRpAqU1MOPm0BvC6TQGH9jQo1sCxKWeH@dpg-d323vmjipnbc73csma5g-a:5432/schirmersnotary'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
@@ -48,6 +47,8 @@ def log_origin():
 @app.route('/')
 def index():
     return "Schirmer's Notary API is running."
+
+migrate = Migrate(app, db)
 
 app.register_blueprint(jobs_bp, url_prefix='/jobs')
 app.register_blueprint(journal_bp, url_prefix='/journal')
