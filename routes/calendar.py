@@ -18,17 +18,31 @@ def get_calendar_service():
     return service
 
 def add_event_to_calendar(event_data):
+    service = get_calendar_service()
+    event = {
+        'summary': event_data['title'],
+        'location': event_data['location'],
+        'description': event_data['description'],
+        'start': {
+            'dateTime': event_data['start_date'], 
+            'timeZone': 'America/New_York',      
+        },
+        'end': {
+            'dateTime': event_data['end_date'],  
+            'timeZone': 'America/New_York',
+        },
+    }
+    created_event = service.events().insert(calendarId='primary', body=event).execute()
+    return created_event
 
-    event = Event(
-        title=event_data['title'],
-        start_date=event_data['start_date'],
-        end_date=event_data['end_date'],
-        description=event_data['description'],
-        location=event_data['location'],
-        user_id=event_data['user_id'],
-    )
-    db.session.add(event)
-    db.session.commit()
+def block_unavailable_time(start_datetime, end_datetime, user_id):
+    service = get_calendar_service()
+    event = {
+        'summary': 'Unavailable',
+        'start': {'dateTime': start_datetime, 'timeZone': 'America/New_York'},
+        'end': {'dateTime': end_datetime, 'timeZone': 'America/New_York'},
+    }
+    service.events().insert(calendarId='primary', body=event).execute()
 
 @calendar_bp.route('/', methods=['GET'])
 def get_events():

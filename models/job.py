@@ -1,4 +1,5 @@
 from database.db import db
+from datetime import datetime
 
 class JobRequest(db.Model):
     __tablename__ = 'job_request'
@@ -57,3 +58,15 @@ class DeniedJob(db.Model):
     denied_at = db.Column(db.DateTime, server_default=db.func.now())
     reason = db.Column(db.Text, nullable=True)
     email = db.Column(db.String(120))
+
+
+class PDF(db.Model):
+    __tablename__ = "pdfs"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    upload_time = db.Column(db.DateTime, default=datetime.utcnow)
+    # Optionally store file content as binary:
+    # data = db.Column(db.LargeBinary, nullable=True)
+    # Or store the file path:
+    file_path = db.Column(db.String(512), nullable=True)

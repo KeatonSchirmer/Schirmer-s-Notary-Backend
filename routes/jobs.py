@@ -110,16 +110,13 @@ def request_job():
     date = data.get('date')
     location = data.get('location')
 
-    # Optional fields
     doc_description = data.get('wording', '')
     id_verification = data.get('id_verification', 'no').lower() == 'yes'
     witnesses = 1 if data.get('witness') == 'yes' else 0
 
-    # Validate required fields
     if not all([name, document_type, service, signers, location]):
         return jsonify({'error': 'Missing required fields'}), 400
 
-    # Fetch or create client contact
     client_contact = ClientContact.query.filter_by(email=client_email).first()
     if not client_contact:
         client_contact = ClientContact(name=name, email=client_email)
@@ -147,7 +144,6 @@ def request_job():
     db.session.add(job)
     db.session.commit()
 
-    # Check if the client contact already exists (by email)
     existing_contact = ClientContact.query.filter_by(email=client_email).first()
     if not existing_contact:
         contact = ClientContact(
@@ -199,18 +195,14 @@ def view_request(request_id):
 def accept_request(request_id):
     job = JobRequest.query.get_or_404(request_id)
     data = request.get_json() or {}
-    # Update job's service_date if provided
     new_service_date = data.get('service_date')
     if new_service_date:
-        # Accept both "YYYY-MM-DD" and ISO formats like "YYYY-MM-DDTHH:MM"
         try:
             job.service_date = datetime.strptime(new_service_date[:10], "%Y-%m-%d")
         except Exception:
             return jsonify({"error": "Invalid date format"}), 400
         db.session.commit()
 
-    # Move to AcceptedJob table
-    # Determine status based on service_date
     progress = 'upcoming'
     if job.service_date:
         now = datetime.now()
@@ -224,10 +216,10 @@ def accept_request(request_id):
         id_verification=job.id_verification,
         witnesses=job.witnesses,
         location=job.location,
-        service_date=job.service_date,  # Always use the updated date
+        service_date=job.service_date,
         wording=job.wording,
         requested_by=job.requested_by,
-        payment_method=None,  # Or default 'Pending'
+        payment_method=None,
         email=job.email,
         notes=data.get('notes'),
         progress=progress
