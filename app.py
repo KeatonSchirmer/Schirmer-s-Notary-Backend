@@ -1,4 +1,5 @@
 from flask import Flask, request
+from flask_migrate import Migrate
 from flask_cors import CORS
 from routes.jobs import jobs_bp
 from routes.service import service_bp
@@ -19,6 +20,8 @@ import logging
 
 
 app = Flask(__name__)
+db.init_app(app)
+migrate = Migrate(app, db)
 allowed_origins = [
     'https://schirmer-s-notary-admin-site.onrender.com',
     'https://schirmer-s-notary-main-site.onrender.com',
