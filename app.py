@@ -18,13 +18,11 @@ from werkzeug.security import generate_password_hash
 
 app = Flask(__name__)
 allowed_origins = [
-    "http://192.168.0.218:3000",
-    "http://localhost:3001",
-    "capacitor://localhost",   
-    "http://localhost",         
-    "http://localhost:3000",
     'https://schirmer-s-notary-admin-site.onrender.com',
-    'https://schirmer-s-notary-main-site.onrender.com'
+    'https://schirmer-s-notary-main-site.onrender.com',
+    "*",
+    "http://schirmersnotary.com",
+    "http://www.schirmersnotary.com",
 ]
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": allowed_origins}}, allow_headers=["Content-Type", "Authorization", "x-user-id"])
 app.config['SECRET_KEY'] = 'DaylynDavis2!'
@@ -71,4 +69,3 @@ def create_admin():
 with app.app_context():
     db.create_all()
     create_admin()
-app.run(host='0.0.0.0', port=5000, debug=True)
