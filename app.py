@@ -28,6 +28,7 @@ allowed_origins = [
     "capacitor://localhost",
     "ionic://localhost",
     "http://localhost",
+    "null",
 ]
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": allowed_origins}}, allow_headers=["Content-Type", "Authorization", "x-user-id"])
 app.config['SECRET_KEY'] = 'DaylynDavis2!'
