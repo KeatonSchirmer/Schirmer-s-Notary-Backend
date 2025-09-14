@@ -4,6 +4,9 @@ class User(db.Model):
 
     __tablename__ = "users"
 
+    office_start = db.Column(db.String(5), nullable=True)
+    office_end = db.Column(db.String(5), nullable=True)
+    available_days = db.Column(db.String(20), nullable=True)
     id = db.Column(db.Integer, primary_key=True)
     is_admin = db.Column(db.Boolean, default=False)
     role = db.Column(db.String(10))

@@ -4,6 +4,8 @@ from googleapiclient.discovery import build
 from database.db import db
 from models.event import Event
 from models.job import AcceptedJob
+from models.user import User
+from datetime import datetime
 
 
 calendar_bp = Blueprint('calendar', __name__, template_folder='frontend/templates')
@@ -51,18 +53,52 @@ def get_events():
     events = events_result.get('items', [])
     return jsonify({"events": events})
 
-@calendar_bp.route('/local', methods=['GET'])
-def get_local_events():
-    events = Event.query.all()
-    return jsonify([{
-        "id": e.id,
-        "title": e.title,
-        "start_date": e.start_date.isoformat(),
-        "end_date": e.end_date.isoformat(),
-        "location": e.location,
-        "description": e.description,
-        "user_id": e.user_id
-    } for e in events])
+@calendar_bp.route('/availability', methods=['POST'])
+def set_availability():
+    user_id = request.headers.get("X-User-Id")
+    data = request.get_json()
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    user.office_start = data.get("officeStart")
+    user.office_end = data.get("officeEnd")
+    user.available_days = ",".join(data.get("availableDays", [])) if isinstance(data.get("availableDays"), list) else data.get("availableDays")
+    db.session.commit()
+    return jsonify({"message": "Availability saved."}), 200
+
+@calendar_bp.route('/local', methods=['POST'])
+def add_local_event():
+    data = request.get_json()
+    user = User.query.get(data.get('user_id'))
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Check available days
+    available_days = user.available_days.split(",") if user.available_days else []
+    event_day = datetime.fromisoformat(data.get('start_date')).strftime("%a")
+    if available_days and event_day not in available_days:
+        return jsonify({"error": "Event day not in user's available days"}), 400
+
+    # Check available hours
+    office_start = user.office_start or "00:00"
+    office_end = user.office_end or "23:59"
+    event_start_time = datetime.fromisoformat(data.get('start_date')).strftime("%H:%M")
+    event_end_time = datetime.fromisoformat(data.get('end_date')).strftime("%H:%M")
+    if not (office_start <= event_start_time <= office_end and office_start <= event_end_time <= office_end):
+        return jsonify({"error": "Event time outside user's available hours"}), 400
+
+    event = Event(
+        title=data.get('title'),
+        start_date=data.get('start_date'),
+        end_date=data.get('end_date'),
+        location=data.get('location'),
+        description=data.get('description'),
+        user_id=data.get('user_id'),
+    )
+    db.session.add(event)
+    db.session.commit()
+    return jsonify({"message": "Local event added.", "id": event.id}), 201
 
 @calendar_bp.route('/google-sync', methods=['POST'])
 def google_sync():
