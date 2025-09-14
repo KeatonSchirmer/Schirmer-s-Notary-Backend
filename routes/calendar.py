@@ -63,7 +63,7 @@ def set_availability():
 
     user.office_start = data.get("officeStart")
     user.office_end = data.get("officeEnd")
-    user.available_days = data.get("availableDays", [])
+    user.available_days = ",".join(data.get("availableDays", [])) if isinstance(data.get("availableDays"), list) else data.get("availableDays")
     db.session.commit()
     return jsonify({"message": "Availability saved."}), 200
 
