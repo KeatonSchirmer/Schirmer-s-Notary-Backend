@@ -74,13 +74,11 @@ def add_local_event():
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    # Check available days
     available_days = user.available_days.split(",") if user.available_days else []
     event_day = datetime.fromisoformat(data.get('start_date')).strftime("%a")
     if available_days and event_day not in available_days:
         return jsonify({"error": "Event day not in user's available days"}), 400
 
-    # Check available hours
     office_start = user.office_start or "00:00"
     office_end = user.office_end or "23:59"
     event_start_time = datetime.fromisoformat(data.get('start_date')).strftime("%H:%M")
@@ -114,21 +112,6 @@ def google_sync():
     db.session.add(event)
     db.session.commit()
     return jsonify({"message": "Google event synced and slot blocked."}), 201
-
-@calendar_bp.route('/local', methods=['POST'])
-def add_local_event():
-    data = request.get_json()
-    event = Event(
-        title=data.get('title'),
-        start_date=data.get('start_date'),
-        end_date=data.get('end_date'),
-        location=data.get('location'),
-        description=data.get('description'),
-        user_id=data.get('user_id'),
-    )
-    db.session.add(event)
-    db.session.commit()
-    return jsonify({"message": "Local event added.", "id": event.id}), 201
 
 @calendar_bp.route('/local/<int:event_id>', methods=['PUT'])
 def edit_local_event(event_id):
