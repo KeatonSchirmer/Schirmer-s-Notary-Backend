@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from database.db import db
@@ -65,4 +65,91 @@ def get_local_events():
                 "location": e.location,
             })
     return jsonify({"events": events_list})
+@calendar_bp.route('/google-sync', methods=['POST'])
+def google_sync():
+    data = request.get_json()
+    event = Event(
+        title=data.get('title'),
+        start_date=data.get('start_date'),
+        end_date=data.get('end_date'),
+        location=data.get('location'),
+        description=data.get('description'),
+        user_id=data.get('user_id'),
+    )
+    db.session.add(event)
+    db.session.commit()
+    return jsonify({"message": "Google event synced and slot blocked."}), 201
 
+@calendar_bp.route('/local', methods=['GET'])
+def get_local_events():
+    events = Event.query.all()
+    return jsonify([{
+        "id": e.id,
+        "title": e.title,
+        "start_date": e.start_date.isoformat(),
+        "end_date": e.end_date.isoformat(),
+        "location": e.location,
+        "description": e.description,
+        "user_id": e.user_id
+    } for e in events])
+
+@calendar_bp.route('/local', methods=['POST'])
+def add_local_event():
+    data = request.get_json()
+    event = Event(
+        title=data.get('title'),
+        start_date=data.get('start_date'),
+        end_date=data.get('end_date'),
+        location=data.get('location'),
+        description=data.get('description'),
+        user_id=data.get('user_id'),
+    )
+    db.session.add(event)
+    db.session.commit()
+    return jsonify({"message": "Local event added.", "id": event.id}), 201
+
+@calendar_bp.route('/local/<int:event_id>', methods=['PUT'])
+def edit_local_event(event_id):
+    data = request.get_json()
+    event = Event.query.get(event_id)
+    if not event:
+        return jsonify({"error": "Event not found"}), 404
+    event.title = data.get('title', event.title)
+    event.start_date = data.get('start_date', event.start_date)
+    event.end_date = data.get('end_date', event.end_date)
+    event.location = data.get('location', event.location)
+    event.description = data.get('description', event.description)
+    db.session.commit()
+    return jsonify({"message": "Local event updated."})
+
+@calendar_bp.route('/local/<int:event_id>', methods=['DELETE'])
+def delete_local_event(event_id):
+    event = Event.query.get(event_id)
+    if not event:
+        return jsonify({"error": "Event not found"}), 404
+    db.session.delete(event)
+    db.session.commit()
+    return jsonify({"message": "Local event deleted."})
+
+@calendar_bp.route('/local/<int:event_id>', methods=['PUT'])
+def edit_local_event(event_id):
+    data = request.get_json()
+    event = Event.query.get(event_id)
+    if not event or event.source != 'local':
+        return jsonify({"error": "Event not found"}), 404
+    event.title = data.get('title', event.title)
+    event.start = data.get('start', event.start)
+    event.end = data.get('end', event.end)
+    event.location = data.get('location', event.location)
+    event.description = data.get('description', event.description)
+    db.session.commit()
+    return jsonify({"message": "Local event updated."})
+
+@calendar_bp.route('/local/<int:event_id>', methods=['DELETE'])
+def delete_local_event(event_id):
+    event = Event.query.get(event_id)
+    if not event or event.source != 'local':
+        return jsonify({"error": "Event not found"}), 404
+    db.session.delete(event)
+    db.session.commit()
+    return jsonify({"message": "Local event deleted."})
