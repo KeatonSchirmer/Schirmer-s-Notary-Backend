@@ -5,7 +5,7 @@ from database.db import db
 from models.event import Event
 from models.job import AcceptedJob
 from models.user import User
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 calendar_bp = Blueprint('calendar', __name__, template_folder='frontend/templates')
@@ -135,3 +135,53 @@ def delete_local_event(event_id):
     db.session.delete(event)
     db.session.commit()
     return jsonify({"message": "Local event deleted."})
+
+@calendar_bp.route('/slots', methods=['GET'])
+def get_available_slots():
+    user_id = request.headers.get("X-User-Id")
+    date_str = request.args.get("date")
+    if not user_id or not date_str:
+        return jsonify({"error": "Missing user ID or date"}), 400
+
+    user = User.query.get(user_id)
+    if not user or not user.office_start or not user.office_end or not user.available_days:
+        return jsonify({"slots": []})
+
+    available_days = user.available_days.split(",") if isinstance(user.available_days, str) else user.available_days
+    day_name = datetime.strptime(date_str, "%Y-%m-%d").strftime("%a")
+    if day_name not in available_days:
+        return jsonify({"slots": []})
+
+    office_start = datetime.strptime(f"{date_str} {user.office_start}", "%Y-%m-%d %H:%M")
+    office_end = datetime.strptime(f"{date_str} {user.office_end}", "%Y-%m-%d %H:%M")
+    slot_length = timedelta(minutes=30)
+    slots = []
+    current = office_start
+    while current + slot_length <= office_end:
+        slots.append({
+            "start": current.strftime("%Y-%m-%dT%H:%M"),
+            "end": (current + slot_length).strftime("%Y-%m-%dT%H:%M")
+        })
+        current += slot_length
+
+    events = Event.query.filter(
+        Event.user_id == user_id,
+        Event.start_date >= office_start,
+        Event.end_date <= office_end
+    ).all()
+    busy_times = [(e.start_date, e.end_date) for e in events]
+
+    def is_free(slot_start, slot_end):
+        for busy_start, busy_end in busy_times:
+            if not (slot_end <= busy_start or slot_start >= busy_end):
+                return False
+        return True
+
+    available_slots = [
+        slot for slot in slots
+        if is_free(datetime.strptime(slot["start"], "%Y-%m-%dT%H:%M"),
+                   datetime.strptime(slot["end"], "%Y-%m-%dT%H:%M"))
+    ]
+
+    return jsonify({"slots": available_slots})
+
