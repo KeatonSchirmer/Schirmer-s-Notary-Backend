@@ -49,22 +49,21 @@ def get_events():
     service = get_calendar_service()
     events_result = service.events().list(calendarId='primary', maxResults=10, singleEvents=True, orderBy='startTime').execute()
     events = events_result.get('items', [])
-    # You can filter/format events as needed
     return jsonify({"events": events})
 
 @calendar_bp.route('/local', methods=['GET'])
 def get_local_events():
-    events = AcceptedJob.query.all()
-    events_list = []
-    for e in events:
-        if e.service_date:
-            events_list.append({
-                "id": e.id,
-                "name": e.name,
-                "start_date": e.service_date.isoformat(),
-                "location": e.location,
-            })
-    return jsonify({"events": events_list})
+    events = Event.query.all()
+    return jsonify([{
+        "id": e.id,
+        "title": e.title,
+        "start_date": e.start_date.isoformat(),
+        "end_date": e.end_date.isoformat(),
+        "location": e.location,
+        "description": e.description,
+        "user_id": e.user_id
+    } for e in events])
+
 @calendar_bp.route('/google-sync', methods=['POST'])
 def google_sync():
     data = request.get_json()
@@ -79,19 +78,6 @@ def google_sync():
     db.session.add(event)
     db.session.commit()
     return jsonify({"message": "Google event synced and slot blocked."}), 201
-
-@calendar_bp.route('/local', methods=['GET'])
-def get_local_events():
-    events = Event.query.all()
-    return jsonify([{
-        "id": e.id,
-        "title": e.title,
-        "start_date": e.start_date.isoformat(),
-        "end_date": e.end_date.isoformat(),
-        "location": e.location,
-        "description": e.description,
-        "user_id": e.user_id
-    } for e in events])
 
 @calendar_bp.route('/local', methods=['POST'])
 def add_local_event():
@@ -126,29 +112,6 @@ def edit_local_event(event_id):
 def delete_local_event(event_id):
     event = Event.query.get(event_id)
     if not event:
-        return jsonify({"error": "Event not found"}), 404
-    db.session.delete(event)
-    db.session.commit()
-    return jsonify({"message": "Local event deleted."})
-
-@calendar_bp.route('/local/<int:event_id>', methods=['PUT'])
-def edit_local_event(event_id):
-    data = request.get_json()
-    event = Event.query.get(event_id)
-    if not event or event.source != 'local':
-        return jsonify({"error": "Event not found"}), 404
-    event.title = data.get('title', event.title)
-    event.start = data.get('start', event.start)
-    event.end = data.get('end', event.end)
-    event.location = data.get('location', event.location)
-    event.description = data.get('description', event.description)
-    db.session.commit()
-    return jsonify({"message": "Local event updated."})
-
-@calendar_bp.route('/local/<int:event_id>', methods=['DELETE'])
-def delete_local_event(event_id):
-    event = Event.query.get(event_id)
-    if not event or event.source != 'local':
         return jsonify({"error": "Event not found"}), 404
     db.session.delete(event)
     db.session.commit()
