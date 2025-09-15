@@ -3,10 +3,8 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from database.db import db
 from models.event import Event
-from models.job import AcceptedJob
 from models.user import User
 from datetime import datetime, timedelta
-
 
 calendar_bp = Blueprint('calendar', __name__, template_folder='frontend/templates')
 
@@ -26,25 +24,16 @@ def add_event_to_calendar(event_data):
         'location': event_data['location'],
         'description': event_data['description'],
         'start': {
-            'dateTime': event_data['start_date'], 
-            'timeZone': 'America/New_York',      
+            'dateTime': event_data['start_date'],
+            'timeZone': 'America/New_York',
         },
         'end': {
-            'dateTime': event_data['end_date'],  
+            'dateTime': event_data['end_date'],
             'timeZone': 'America/New_York',
         },
     }
     created_event = service.events().insert(calendarId='primary', body=event).execute()
     return created_event
-
-def block_unavailable_time(start_datetime, end_datetime, user_id):
-    service = get_calendar_service()
-    event = {
-        'summary': 'Unavailable',
-        'start': {'dateTime': start_datetime, 'timeZone': 'America/New_York'},
-        'end': {'dateTime': end_datetime, 'timeZone': 'America/New_York'},
-    }
-    service.events().insert(calendarId='primary', body=event).execute()
 
 @calendar_bp.route('/', methods=['GET'])
 def get_events():
@@ -63,6 +52,7 @@ def set_availability():
 
     user.office_start = data.get("officeStart")
     user.office_end = data.get("officeEnd")
+    # Always save as comma-separated string
     user.available_days = ",".join(data.get("availableDays", [])) if isinstance(data.get("availableDays"), list) else data.get("availableDays")
     db.session.commit()
     return jsonify({"message": "Availability saved."}), 200
@@ -96,22 +86,16 @@ def add_local_event():
     )
     db.session.add(event)
     db.session.commit()
-    return jsonify({"message": "Local event added.", "id": event.id}), 201
 
-@calendar_bp.route('/google-sync', methods=['POST'])
-def google_sync():
-    data = request.get_json()
-    event = Event(
-        title=data.get('title'),
-        start_date=data.get('start_date'),
-        end_date=data.get('end_date'),
-        location=data.get('location'),
-        description=data.get('description'),
-        user_id=data.get('user_id'),
-    )
-    db.session.add(event)
-    db.session.commit()
-    return jsonify({"message": "Google event synced and slot blocked."}), 201
+    add_event_to_calendar({
+        "title": event.title,
+        "start_date": event.start_date if isinstance(event.start_date, str) else event.start_date.isoformat(),
+        "end_date": event.end_date if isinstance(event.end_date, str) else event.end_date.isoformat(),
+        "location": event.location,
+        "description": event.description,
+    })
+
+    return jsonify({"message": "Local event added and sent to Google Calendar.", "id": event.id}), 201
 
 @calendar_bp.route('/local/<int:event_id>', methods=['PUT'])
 def edit_local_event(event_id):
@@ -185,3 +169,39 @@ def get_available_slots():
 
     return jsonify({"slots": available_slots})
 
+@calendar_bp.route('/google-sync-events', methods=['POST'])
+def sync_google_events():
+    service = get_calendar_service()
+    now = datetime.utcnow().isoformat() + 'Z'
+    events_result = service.events().list(
+        calendarId='primary',
+        timeMin=now,
+        maxResults=50,
+        singleEvents=True,
+        orderBy='startTime'
+    ).execute()
+    google_events = events_result.get('items', [])
+
+    synced = 0
+    for ge in google_events:
+        # Parse Google event start/end times
+        start_dt = ge['start'].get('dateTime') or ge['start'].get('date')
+        end_dt = ge['end'].get('dateTime') or ge['end'].get('date')
+        exists = Event.query.filter_by(
+            start_date=start_dt,
+            end_date=end_dt,
+            title=ge.get('summary')
+        ).first()
+        if not exists:
+            event = Event(
+                title=ge.get('summary'),
+                start_date=start_dt,
+                end_date=end_dt,
+                location=ge.get('location'),
+                description=ge.get('description'),
+                user_id=request.headers.get("X-User-Id")
+            )
+            db.session.add(event)
+            synced += 1
+    db.session.commit()
+    return jsonify({"message": f"Synced {synced} new Google Calendar events."})

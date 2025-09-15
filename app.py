@@ -17,6 +17,7 @@ from database.db import db
 from models.user import User
 from werkzeug.security import generate_password_hash
 import logging
+from utils.scheduler import start_scheduler
 
 
 app = Flask(__name__)
@@ -82,4 +83,4 @@ app.register_blueprint(finances_bp, url_prefix="/finances")
 
 with app.app_context():
     db.create_all()
-#    create_admin()
+    start_scheduler()

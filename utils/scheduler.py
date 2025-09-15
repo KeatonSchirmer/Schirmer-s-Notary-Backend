@@ -1,0 +1,20 @@
+from apscheduler.schedulers.background import BackgroundScheduler
+import requests
+
+def sync_google_events():
+    API_URL = "https://schirmer-s-notary-backend.onrender.com/calendar/google-sync-events"
+    USER_ID = "1"  # Replace with a valid user ID
+    headers = {
+        "Content-Type": "application/json",
+        "X-User-Id": USER_ID,
+    }
+    try:
+        response = requests.post(API_URL, headers=headers)
+        print(f"Google sync status: {response.status_code}")
+    except Exception as e:
+        print(f"Google sync error: {e}")
+
+def start_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(sync_google_events, 'interval', minutes=10)  # every 10 minutes
+    scheduler.start()
