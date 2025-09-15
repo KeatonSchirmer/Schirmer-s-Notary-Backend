@@ -11,6 +11,9 @@ calendar_bp = Blueprint('calendar', __name__, template_folder='frontend/template
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 SERVICE_ACCOUNT_FILE = 'backend/utils/credentials.json'
 
+def get_default_user():
+    return User.query.first()
+
 def get_calendar_service():
     creds = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)
@@ -42,6 +45,20 @@ def get_events():
     events = events_result.get('items', [])
     return jsonify({"events": events})
 
+@calendar_bp.route('/local', methods=['GET'])
+def get_local_events():
+    user_id = request.headers.get("X-User-Id")
+    events = Event.query.filter_by(user_id=user_id).all()
+    return jsonify([{
+        "id": e.id,
+        "title": e.title,
+        "start_date": e.start_date.isoformat(),
+        "end_date": e.end_date.isoformat(),
+        "location": e.location,
+        "description": e.description,
+        "user_id": e.user_id
+    } for e in events])
+
 @calendar_bp.route('/availability', methods=['POST'])
 def set_availability():
     user_id = request.headers.get("X-User-Id")
@@ -52,29 +69,32 @@ def set_availability():
 
     user.office_start = data.get("officeStart")
     user.office_end = data.get("officeEnd")
-    # Always save as comma-separated string
-    user.available_days = ",".join(data.get("availableDays", [])) if isinstance(data.get("availableDays"), list) else data.get("availableDays")
+    days = data.get("availableDays", [])
+    if isinstance(days, list):
+        user.available_days = ",".join(str(d) for d in days)
+    else:
+        user.available_days = days
     db.session.commit()
     return jsonify({"message": "Availability saved."}), 200
 
 @calendar_bp.route('/local', methods=['POST'])
 def add_local_event():
     data = request.get_json()
-    user = User.query.get(data.get('user_id'))
+    user = get_default_user()
     if not user:
-        return jsonify({"error": "User not found"}), 404
+        return jsonify({"error": "No booking user found"}), 404
 
     available_days = user.available_days.split(",") if user.available_days else []
     event_day = datetime.fromisoformat(data.get('start_date')).strftime("%a")
     if available_days and event_day not in available_days:
-        return jsonify({"error": "Event day not in user's available days"}), 400
+        return jsonify({"error": "Event day not in available days"}), 400
 
     office_start = user.office_start or "00:00"
     office_end = user.office_end or "23:59"
     event_start_time = datetime.fromisoformat(data.get('start_date')).strftime("%H:%M")
     event_end_time = datetime.fromisoformat(data.get('end_date')).strftime("%H:%M")
     if not (office_start <= event_start_time <= office_end and office_start <= event_end_time <= office_end):
-        return jsonify({"error": "Event time outside user's available hours"}), 400
+        return jsonify({"error": "Event time outside available hours"}), 400
 
     event = Event(
         title=data.get('title'),
@@ -82,7 +102,7 @@ def add_local_event():
         end_date=data.get('end_date'),
         location=data.get('location'),
         description=data.get('description'),
-        user_id=data.get('user_id'),
+        user_id=user.id,
     )
     db.session.add(event)
     db.session.commit()
@@ -95,7 +115,7 @@ def add_local_event():
         "description": event.description,
     })
 
-    return jsonify({"message": "Local event added and sent to Google Calendar.", "id": event.id}), 201
+    return jsonify({"message": "Appointment booked and sent to Google Calendar.", "id": event.id}), 201
 
 @calendar_bp.route('/local/<int:event_id>', methods=['PUT'])
 def edit_local_event(event_id):
@@ -122,17 +142,16 @@ def delete_local_event(event_id):
 
 @calendar_bp.route('/slots', methods=['GET'])
 def get_available_slots():
-    user_id = request.headers.get("X-User-Id")
     date_str = request.args.get("date")
-    if not user_id or not date_str:
-        return jsonify({"error": "Missing user ID or date"}), 400
+    if not date_str:
+        return jsonify({"error": "Missing date"}), 400
 
-    user = User.query.get(user_id)
+    user = get_default_user()
     if not user or not user.office_start or not user.office_end or not user.available_days:
         return jsonify({"slots": []})
 
     available_days = user.available_days.split(",") if isinstance(user.available_days, str) else user.available_days
-    day_name = datetime.strptime(date_str, "%Y-%m-%d").strftime("%a")
+    day_name = datetime.strptime(date_str, "%a")
     if day_name not in available_days:
         return jsonify({"slots": []})
 
@@ -149,7 +168,7 @@ def get_available_slots():
         current += slot_length
 
     events = Event.query.filter(
-        Event.user_id == user_id,
+        Event.user_id == user.id,
         Event.start_date >= office_start,
         Event.end_date <= office_end
     ).all()

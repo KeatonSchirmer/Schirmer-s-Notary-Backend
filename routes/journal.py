@@ -5,8 +5,18 @@ from models.journal import JournalEntry
 from database.db import db
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
+import os
+from werkzeug.utils import secure_filename
+
+
 
 journal_bp = Blueprint('journal', __name__, template_folder='frontend/templates')
+
+
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'database', 'journal_docs')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
 
 @journal_bp.route('/', methods=['GET'])
 def get_journal_entries():
@@ -95,3 +105,33 @@ def generate_pdf(entry_id):
         download_name=f'Journal_{entry.id}.pdf',
         mimetype='application/pdf'
     )
+
+@journal_bp.route('/journal/<int:entry_id>/upload', methods=['POST'])
+def upload_document(entry_id):
+    entry = JournalEntry.query.get(entry_id)
+    if not entry:
+        return jsonify({"error": "Journal entry not found"}), 404
+
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    filename = secure_filename(file.filename)
+    save_path = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(save_path)
+
+    entry.document_path = save_path
+    db.session.commit()
+
+    return jsonify({"message": "Document uploaded", "document_path": save_path})
+
+@journal_bp.route('/journal/<int:entry_id>/document', methods=['GET'])
+def get_document(entry_id):
+    entry = JournalEntry.query.get(entry_id)
+    if not entry or not entry.document_path:
+        return jsonify({"error": "Document not found"}), 404
+    return send_file(entry.document_path, as_attachment=True)
+

@@ -8,7 +8,7 @@ from routes.contact import contact_bp
 from routes.journal import journal_bp
 from routes.messages import messages_bp
 from routes.profile import profile_bp
-from routes.contacts import clients_bp
+from routes.clients import clients_bp
 from routes.calendar import calendar_bp
 from routes.auth import auth_bp
 from routes.mileage import mileage_bp

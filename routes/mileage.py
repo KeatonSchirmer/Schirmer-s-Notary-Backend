@@ -66,3 +66,30 @@ def get_weekly_mileage():
         return jsonify({"weekly_mileage": total})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@mileage_bp.route('/<int:mileage_id>', methods=['PATCH', 'PUT'])
+def edit_mileage(mileage_id):
+    user_id = request.headers.get("X-User-Id")
+    data = request.get_json()
+    mileage = Mileage.query.filter_by(id=mileage_id, user_id=user_id).first()
+    if not mileage:
+        return jsonify({"error": "Mileage entry not found"}), 404
+
+    # Update fields if provided
+    if 'purpose' in data:
+        mileage.purpose = data['purpose']
+    if 'notes' in data:
+        mileage.notes = data['notes']  # If you have a notes field
+    db.session.commit()
+    return jsonify({"message": "Mileage entry updated."})
+
+@mileage_bp.route('/<int:mileage_id>', methods=['DELETE'])
+def delete_mileage(mileage_id):
+    user_id = request.headers.get("X-User-Id")
+    mileage = Mileage.query.filter_by(id=mileage_id, user_id=user_id).first()
+    if not mileage:
+        return jsonify({"error": "Mileage entry not found"}), 404
+
+    db.session.delete(mileage)
+    db.session.commit()
+    return jsonify({"message": "Mileage entry deleted."})    

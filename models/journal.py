@@ -5,6 +5,7 @@ class JournalEntry(db.Model):
     date = db.Column(db.Date, nullable=False)
     client_name = db.Column(db.String(100), nullable=False)
     document_type = db.Column(db.String(100), nullable=False)
+    document_path = db.Column(db.String(512), nullable=True)
     id_type = db.Column(db.String(50), nullable=True)
     id_number = db.Column(db.String(50), nullable=True)
     signature = db.Column(db.String(255), nullable=True)  # Path to signature image or text

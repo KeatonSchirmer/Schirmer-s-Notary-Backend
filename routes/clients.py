@@ -75,3 +75,23 @@ def get_client_history(client_id):
             } for r in requests
         ]
     })
+
+@clients_bp.route('/create', methods=['POST'])
+def create_client():
+    data = request.get_json()
+    name = data.get('name')
+    email = data.get('email')
+    company = data.get('company')
+
+    if not name or not email:
+        return jsonify({'error': 'Name and email are required.'}), 400
+
+    client = ClientContact(name=name, email=email, company=company)
+    db.session.add(client)
+    db.session.commit()
+    return jsonify({
+        'id': client.id,
+        'name': client.name,
+        'email': client.email,
+        'company': client.company
+    }), 201
