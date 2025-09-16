@@ -16,16 +16,6 @@ class Admin(db.Model):
     two_factor_code_created = db.Column(db.DateTime)
     notification_enabled = db.Column(db.Boolean, default=True)
 
-
-class Company(db.Model):
-    __tablename__ = "company"
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False)
-    address = db.Column(db.String(255))
-    contact_points = db.relationship('ClientContact', backref='company', lazy=True)
-
-
 class Client(db.Model):
     __tablename__ = "client"
 
@@ -42,6 +32,13 @@ class Client(db.Model):
     company = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
     bookings = db.relationship('Booking', backref='client', lazy=True)
 
+class Company(db.Model):
+    __tablename__ = "company"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    address = db.Column(db.String(255))
+    contact_points = db.relationship('ClientContact', backref='company', lazy=True)
 
 class SchirmersNotary(db.Model):
     __tablename__ = "schirmersnotary"
