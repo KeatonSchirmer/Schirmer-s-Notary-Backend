@@ -186,3 +186,61 @@ def get_available_slots():
     ]
 
     return jsonify({"slots": available_slots})
+
+@calendar_bp.route('/local/sync-to-google', methods=['POST'])
+def sync_all_local_to_google():
+    bookings = Booking.query.filter_by(status="accepted").all()
+    synced = []
+    for b in bookings:
+        start_datetime = f"{b.date.strftime('%Y-%m-%d')}T{b.time.strftime('%H:%M')}"
+        end_datetime = (datetime.combine(b.date, b.time) + timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M')
+        event_data = {
+            "name": b.service,
+            "id": b.id,
+            "start_datetime": start_datetime,
+            "end_datetime": end_datetime,
+            "notes": b.notes,
+            "client_email": None
+        }
+        add_event_to_calendar(event_data)
+        synced.append(b.id)
+    return jsonify({"message": f"Synced {len(synced)} bookings to Google Calendar.", "synced_ids": synced})
+
+@calendar_bp.route('/google-sync-to-local', methods=['GET','POST'])
+def sync_google_to_local():
+    service = get_calendar_service()
+    now = datetime.utcnow().isoformat() + 'Z'
+    events_result = service.events().list(
+        calendarId='primary', timeMin=now,
+        maxResults=50, singleEvents=True,
+        orderBy='startTime').execute()
+    events = events_result.get('items', [])
+
+    synced = []
+    for event in events:
+        summary = event.get('summary', 'No Title')
+        start = event['start'].get('dateTime')
+        end = event['end'].get('dateTime')
+        notes = event.get('description', '')
+        if start:
+            start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
+            date = start_dt.date()
+            time = start_dt.time()
+        else:
+            continue
+
+        existing = Booking.query.filter_by(date=date, time=time, service=summary).first()
+        if not existing:
+            booking = Booking(
+                service=summary,
+                date=date,
+                time=time,
+                notes=notes,
+                status="accepted"
+            )
+            db.session.add(booking)
+            synced.append(summary)
+    db.session.commit()
+    return jsonify({"message": f"Synced {len(synced)} Google events to local calendar.", "synced_events": synced})
+
+
