@@ -4,155 +4,76 @@ from database.db import db
 import os
 from models.journal import PDF
 from models.accounts import Client
-from models.bookings import PendingBooking, AcceptedBooking, DeniedBooking, CompletedBooking
+from models.business import Finance, Mileage
+from models.bookings import Booking
 
 jobs_bp = Blueprint('jobs', __name__)
 
 PDF_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'database', 'pdfs')
 os.makedirs(PDF_FOLDER, exist_ok=True)
 
+# Create a new booking (always starts as pending)
 @jobs_bp.route('/request', methods=['POST'])
-def request_job():
+def request_booking():
     data = request.get_json()
-    name = data.get('name')
+    client_id = data.get('client_id')
     service = data.get('service')
     urgency = data.get('urgency', 'normal')
     date = data.get('date')
     time = data.get('time')
+    location = data.get('location', '')
     notes = data.get('notes', '')
-    client_id = data.get('client_id')
+    journal_id = data.get('journal_id')
 
-    if not all([name, service, date, time, client_id]):
+    if not all([client_id, service, date, time]):
         return jsonify({'error': 'Missing required fields'}), 400
 
-    booking = PendingBooking(
-        name=name,
+    booking = Booking(
+        client_id=client_id,
         service=service,
         urgency=urgency,
         date=datetime.strptime(date, "%Y-%m-%d"),
-        time=time,
+        time=datetime.strptime(time, "%H:%M").time(),
+        location=location,
         notes=notes,
-        client_id=client_id
+        journal_id=journal_id,
+        status="pending"
     )
     db.session.add(booking)
     db.session.commit()
-    return jsonify({"message": "Job request submitted successfully", "id": booking.id}), 201
+    return jsonify({"message": "Booking request submitted successfully", "id": booking.id}), 201
 
-@jobs_bp.route('/pending/<int:booking_id>/accept', methods=['POST'])
+# Accept a booking
+@jobs_bp.route('/<int:booking_id>/accept', methods=['POST'])
 def accept_booking(booking_id):
-    booking = PendingBooking.query.get_or_404(booking_id)
-    accepted = AcceptedBooking(
-        name=booking.name,
-        service=booking.service,
-        urgency=booking.urgency,
-        date=booking.date,
-        time=booking.time,
-        location=request.json.get('location', ''),
-        notes=booking.notes,
-        client_id=booking.client_id
-    )
-    db.session.add(accepted)
-    db.session.delete(booking)
+    booking = Booking.query.get_or_404(booking_id)
+    booking.status = "accepted"
     db.session.commit()
-    return jsonify({"message": "Booking accepted", "id": accepted.id}), 200
+    return jsonify({"message": "Booking accepted", "id": booking.id}), 200
 
-@jobs_bp.route('/pending/<int:booking_id>/deny', methods=['POST'])
+# Deny a booking
+@jobs_bp.route('/<int:booking_id>/deny', methods=['POST'])
 def deny_booking(booking_id):
-    booking = PendingBooking.query.get_or_404(booking_id)
-    denied = DeniedBooking(
-        name=booking.name,
-        service=booking.service,
-        date=booking.date,
-        notes=request.json.get('notes', booking.notes),
-        client_id=booking.client_id
-    )
-    db.session.add(denied)
-    db.session.delete(booking)
+    booking = Booking.query.get_or_404(booking_id)
+    booking.status = "denied"
+    booking.notes = request.json.get('notes', booking.notes)
     db.session.commit()
-    return jsonify({"message": "Booking denied", "id": denied.id}), 200
+    return jsonify({"message": "Booking denied", "id": booking.id}), 200
 
-@jobs_bp.route('/accepted/<int:booking_id>/complete', methods=['POST'])
+# Complete a booking
+@jobs_bp.route('/<int:booking_id>/complete', methods=['POST'])
 def complete_booking(booking_id):
-    booking = AcceptedBooking.query.get_or_404(booking_id)
-    completed = CompletedBooking(
-        name=booking.name,
-        service=booking.service,
-        date=booking.date,
-        time=booking.time,
-        location=booking.location,
-        notes=booking.notes,
-        client_id=booking.client_id,
-        journal_id=request.json.get('journal_id'),
-        mileage_id=request.json.get('mileage_id')
-    )
-    db.session.add(completed)
-    db.session.delete(booking)
+    booking = Booking.query.get_or_404(booking_id)
+    booking.status = "completed"
+    booking.journal_id = request.json.get('journal_id', booking.journal_id)
     db.session.commit()
-    return jsonify({"message": "Booking marked as completed", "id": completed.id}), 200
+    return jsonify({"message": "Booking marked as completed", "id": booking.id}), 200
 
-@jobs_bp.route('/pending', methods=['GET'])
-def get_pending_bookings():
-    bookings = PendingBooking.query.all()
-    return jsonify([{
-        "id": b.id,
-        "name": b.name,
-        "service": b.service,
-        "urgency": b.urgency,
-        "date": b.date.strftime("%Y-%m-%d"),
-        "time": b.time,
-        "notes": b.notes,
-        "client_id": b.client_id
-    } for b in bookings])
-
-@jobs_bp.route('/accepted', methods=['GET'])
-def get_accepted_bookings():
-    bookings = AcceptedBooking.query.all()
-    return jsonify([{
-        "id": b.id,
-        "name": b.name,
-        "service": b.service,
-        "urgency": b.urgency,
-        "date": b.date.strftime("%Y-%m-%d"),
-        "time": b.time,
-        "location": b.location,
-        "notes": b.notes,
-        "client_id": b.client_id
-    } for b in bookings])
-
-@jobs_bp.route('/denied', methods=['GET'])
-def get_denied_bookings():
-    bookings = DeniedBooking.query.all()
-    return jsonify([{
-        "id": b.id,
-        "name": b.name,
-        "service": b.service,
-        "date": b.date.strftime("%Y-%m-%d"),
-        "notes": b.notes,
-        "client_id": b.client_id
-    } for b in bookings])
-
-@jobs_bp.route('/completed', methods=['GET'])
-def get_completed_bookings():
-    bookings = CompletedBooking.query.all()
-    return jsonify([{
-        "id": b.id,
-        "name": b.name,
-        "service": b.service,
-        "date": b.date.strftime("%Y-%m-%d"),
-        "time": b.time,
-        "location": b.location,
-        "notes": b.notes,
-        "client_id": b.client_id,
-        "journal_id": b.journal_id,
-        "mileage_id": b.mileage_id
-    } for b in bookings])
-
-@jobs_bp.route('/accepted/<int:booking_id>/edit', methods=['PATCH'])
-def edit_accepted_booking(booking_id):
-    booking = AcceptedBooking.query.get_or_404(booking_id)
+# Edit a booking
+@jobs_bp.route('/<int:booking_id>/edit', methods=['PATCH'])
+def edit_booking(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
     data = request.get_json() or {}
-    if 'name' in data:
-        booking.name = data['name']
     if 'service' in data:
         booking.service = data['service']
     if 'urgency' in data:
@@ -160,42 +81,86 @@ def edit_accepted_booking(booking_id):
     if 'date' in data:
         booking.date = datetime.strptime(data['date'], "%Y-%m-%d")
     if 'time' in data:
-        booking.time = data['time']
+        booking.time = datetime.strptime(data['time'], "%H:%M").time()
     if 'location' in data:
         booking.location = data['location']
     if 'notes' in data:
         booking.notes = data['notes']
+    if 'journal_id' in data:
+        booking.journal_id = data['journal_id']
     db.session.commit()
-    return jsonify({"message": "Accepted booking updated"}), 200
+    return jsonify({"message": "Booking updated"}), 200
 
-@jobs_bp.route('/pending/<int:booking_id>', methods=['DELETE'])
-def delete_pending_booking(booking_id):
-    booking = PendingBooking.query.get_or_404(booking_id)
+# Delete a booking
+@jobs_bp.route('/<int:booking_id>', methods=['DELETE'])
+def delete_booking(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
     db.session.delete(booking)
     db.session.commit()
-    return jsonify({"message": "Pending booking deleted"}), 200
+    return jsonify({"message": "Booking deleted"}), 200
 
-@jobs_bp.route('/accepted/<int:booking_id>', methods=['DELETE'])
-def delete_accepted_booking(booking_id):
-    booking = AcceptedBooking.query.get_or_404(booking_id)
-    db.session.delete(booking)
-    db.session.commit()
-    return jsonify({"message": "Accepted booking deleted"}), 200
+# Get bookings by status
+@jobs_bp.route('/pending', methods=['GET'])
+def get_pending_bookings():
+    bookings = Booking.query.filter_by(status="pending").all()
+    return jsonify([{
+        "id": b.id,
+        "client_id": b.client_id,
+        "service": b.service,
+        "urgency": b.urgency,
+        "date": b.date.strftime("%Y-%m-%d"),
+        "time": b.time.strftime("%H:%M"),
+        "location": b.location,
+        "notes": b.notes,
+        "journal_id": b.journal_id
+    } for b in bookings])
 
-@jobs_bp.route('/denied/<int:booking_id>', methods=['DELETE'])
-def delete_denied_booking(booking_id):
-    booking = DeniedBooking.query.get_or_404(booking_id)
-    db.session.delete(booking)
-    db.session.commit()
-    return jsonify({"message": "Denied booking deleted"}), 200
+@jobs_bp.route('/accepted', methods=['GET'])
+def get_accepted_bookings():
+    bookings = Booking.query.filter_by(status="accepted").all()
+    return jsonify([{
+        "id": b.id,
+        "client_id": b.client_id,
+        "service": b.service,
+        "urgency": b.urgency,
+        "date": b.date.strftime("%Y-%m-%d"),
+        "time": b.time.strftime("%H:%M"),
+        "location": b.location,
+        "notes": b.notes,
+        "journal_id": b.journal_id
+    } for b in bookings])
 
-@jobs_bp.route('/completed/<int:booking_id>', methods=['DELETE'])
-def delete_completed_booking(booking_id):
-    booking = CompletedBooking.query.get_or_404(booking_id)
-    db.session.delete(booking)
-    db.session.commit()
-    return jsonify({"message": "Completed booking deleted"}), 200
+@jobs_bp.route('/denied', methods=['GET'])
+def get_denied_bookings():
+    bookings = Booking.query.filter_by(status="denied").all()
+    return jsonify([{
+        "id": b.id,
+        "client_id": b.client_id,
+        "service": b.service,
+        "urgency": b.urgency,
+        "date": b.date.strftime("%Y-%m-%d"),
+        "time": b.time.strftime("%H:%M"),
+        "location": b.location,
+        "notes": b.notes,
+        "journal_id": b.journal_id
+    } for b in bookings])
 
+@jobs_bp.route('/completed', methods=['GET'])
+def get_completed_bookings():
+    bookings = Booking.query.filter_by(status="completed").all()
+    return jsonify([{
+        "id": b.id,
+        "client_id": b.client_id,
+        "service": b.service,
+        "urgency": b.urgency,
+        "date": b.date.strftime("%Y-%m-%d"),
+        "time": b.time.strftime("%H:%M"),
+        "location": b.location,
+        "notes": b.notes,
+        "journal_id": b.journal_id
+    } for b in bookings])
+
+# PDF upload/list/download (unchanged)
 @jobs_bp.route('/pdfs/upload', methods=['POST'])
 def upload_pdf():
     user_id = request.headers.get("X-User-Id")
@@ -227,4 +192,3 @@ def get_pdf(filename):
     if pdf:
         return send_file(pdf.file_path, mimetype='application/pdf')
     return jsonify({"error": "PDF not found"}), 404
-
