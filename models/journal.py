@@ -22,5 +22,5 @@ class PDF(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(255), nullable=False)
     file_path = db.Column(db.String(512), nullable=False)
-    journal = db.Column(db.Integer, db.ForeignKey('journal.id'), nullable=False)
-    finance = db.Column(db.Integer, db.ForeignKey('finances.id'), nullable=True)
+    journal_id = db.Column(db.Integer, db.ForeignKey('journal.id'), nullable=False)
+    finance_id = db.Column(db.Integer, db.ForeignKey('finances.id'), nullable=True)
