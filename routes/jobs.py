@@ -12,6 +12,25 @@ jobs_bp = Blueprint('jobs', __name__)
 PDF_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'database', 'pdfs')
 os.makedirs(PDF_FOLDER, exist_ok=True)
 
+@jobs_bp.route('/', methods=['GET'])
+def get_all_bookings():
+    bookings = Booking.query.all()
+    return jsonify([
+        {
+            "id": b.id,
+            "client_id": b.client_id,
+            "service": b.service,
+            "urgency": b.urgency,
+            "date": b.date.strftime("%Y-%m-%d") if b.date else None,
+            "time": b.time.strftime("%H:%M") if b.time else None,
+            "location": b.location,
+            "notes": b.notes,
+            "journal_id": b.journal_id,
+            "status": b.status
+        }
+        for b in bookings
+    ])
+
 # Create a new booking (always starts as pending)
 @jobs_bp.route('/request', methods=['POST'])
 def request_booking():
