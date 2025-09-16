@@ -29,7 +29,7 @@ class Client(db.Model):
     two_factor_code = db.Column(db.String(12))
     two_factor_code_created = db.Column(db.DateTime)
     premium = db.Column(db.Enum("None", "Business", "Premium", "Corporate", "Custom", name="premium_tier"), default="None")
-    company = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'))
     bookings = db.relationship('Booking', backref='client', lazy=True)
 
 class Company(db.Model):
