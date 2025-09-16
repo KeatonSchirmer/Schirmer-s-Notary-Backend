@@ -38,7 +38,7 @@ class Company(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     address = db.Column(db.String(255))
-    contact_points = db.relationship('ClientContact', backref='company', lazy=True)
+    contact_points = db.relationship('Client', backref='company', lazy=True)
 
 class SchirmersNotary(db.Model):
     __tablename__ = "schirmersnotary"

@@ -160,7 +160,6 @@ def get_available_slots():
         })
         current += slot_length
 
-    # Find busy times from accepted bookings
     busy_times = []
     accepted_bookings = Booking.query.filter_by(status="accepted", date=datetime.strptime(date_str, "%Y-%m-%d")).all()
     for b in accepted_bookings:
