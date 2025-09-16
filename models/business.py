@@ -22,6 +22,5 @@ class Mileage(db.Model):
     time = db.Column(db.String(10))
     notes = db.Column(db.Text)
     job_id = db.Column(db.Integer, db.ForeignKey('bookings.id'))
-    job_mileage = db.relationship('Booking', backref='mileage', lazy=True)
 
     
