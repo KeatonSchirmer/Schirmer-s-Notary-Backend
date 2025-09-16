@@ -3,18 +3,13 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from routes.jobs import jobs_bp
 from routes.service import service_bp
-from routes.login import login_bp
-from routes.contact import contact_bp
 from routes.journal import journal_bp
-from routes.messages import messages_bp
-from routes.profile import profile_bp
 from routes.clients import clients_bp
 from routes.calendar import calendar_bp
 from routes.auth import auth_bp
 from routes.mileage import mileage_bp
 from routes.finances import finances_bp
 from database.db import db
-from models.user import User
 from werkzeug.security import generate_password_hash
 import logging
 from utils.scheduler import start_scheduler
@@ -53,33 +48,12 @@ migrate = Migrate(app, db)
 
 app.register_blueprint(jobs_bp, url_prefix='/jobs')
 app.register_blueprint(journal_bp, url_prefix='/journal')
-app.register_blueprint(messages_bp, url_prefix='/messages')
-app.register_blueprint(profile_bp, url_prefix='/profile')
 app.register_blueprint(clients_bp, url_prefix='/clients')
 app.register_blueprint(calendar_bp, url_prefix='/calendar')
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(service_bp, url_prefix='/service')
-app.register_blueprint(login_bp, url_prefix='/login')
-app.register_blueprint(contact_bp, url_prefix='/contact')
 app.register_blueprint(mileage_bp, url_prefix="/mileage")
 app.register_blueprint(finances_bp, url_prefix="/finances")
-
-#def create_admin():
-#    with app.app_context():
-#        admin = User.query.filter_by(email="keasch1589@gmail.com").first()
-#        if not admin:
-#            admin = User(
-#                email="keasch1589@gmail.com",
-#                is_admin=True,
-#                name="Admin Name",
-#                password_hash=generate_password_hash("Thunder1589@"),
-#            )
-#            db.session.add(admin)
-#            db.session.commit()
-#            print("Admin user created.")
-#        else:
-#            print("Admin user already exists.")
-
 
 with app.app_context():
     db.create_all()

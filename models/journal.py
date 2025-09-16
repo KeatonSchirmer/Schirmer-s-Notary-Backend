@@ -1,25 +1,25 @@
-from database.db import db
+from datetime import datetime
+from . import db
 
 class JournalEntry(db.Model):
+    __tablename__ = "journal"
+
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
-    client_name = db.Column(db.String(100), nullable=False)
+    location = db.Column(db.String(255))
+    signer_name = db.Column(db.String(120), nullable=False)
+    signer_address = db.Column(db.String(255))
+    signer_phone = db.Column(db.String(20))
     document_type = db.Column(db.String(100), nullable=False)
-    document_path = db.Column(db.String(512), nullable=True)
-    id_type = db.Column(db.String(50), nullable=True)
-    id_number = db.Column(db.String(50), nullable=True)
-    signature = db.Column(db.String(255), nullable=True)  # Path to signature image or text
-    notes = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, server_default=db.func.now())
+    id_verification = db.Column(db.Boolean, default=False)
+    notes = db.Column(db.Text)
+    completed_bookings = db.relationship('CompletedBooking', backref='journal_entry', lazy=True)
+    pdfs = db.relationship('PDF', backref='journal_entry', lazy=True)
 
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'date': self.date.isoformat() if self.date else None,
-            'client_name': self.client_name,
-            'document_type': self.document_type,
-            'id_type': self.id_type,
-            'id_number': self.id_number,
-            'signature': self.signature,
-            'notes': self.notes,
-        }
+class PDF(db.Model):
+    __tablename__ = "pdfs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(512), nullable=False)
+    journal = db.Column(db.Integer, db.ForeignKey('journal.id'), nullable=False)

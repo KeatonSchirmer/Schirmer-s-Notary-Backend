@@ -3,7 +3,7 @@ import requests
 
 def sync_google_events():
     API_URL = "https://schirmer-s-notary-backend.onrender.com/calendar/google-sync-events"
-    USER_ID = "1"  # Replace with a valid user ID
+    USER_ID = "1"
     headers = {
         "Content-Type": "application/json",
         "X-User-Id": USER_ID,
@@ -16,5 +16,5 @@ def sync_google_events():
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(sync_google_events, 'interval', minutes=10)  # every 10 minutes
+    scheduler.add_job(sync_google_events, 'interval', minutes=10)
     scheduler.start()

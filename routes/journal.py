@@ -1,34 +1,31 @@
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file
 from io import BytesIO
 from reportlab.pdfgen import canvas
-from models.journal import JournalEntry
+from models.journal import JournalEntry, PDF
 from database.db import db
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 import os
 from werkzeug.utils import secure_filename
-
-
+from datetime import datetime
 
 journal_bp = Blueprint('journal', __name__, template_folder='frontend/templates')
 
-
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'database', 'journal_docs')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-
 
 @journal_bp.route('/', methods=['GET'])
 def get_journal_entries():
     entries = JournalEntry.query.order_by(JournalEntry.date.desc()).all()
     data = [{
         'id': entry.id,
-        'date': entry.date,
-        'client_name': entry.client_name,
+        'date': entry.date.strftime('%Y-%m-%d') if entry.date else None,
+        'location': entry.location,
+        'signer_name': entry.signer_name,
+        'signer_address': entry.signer_address,
+        'signer_phone': entry.signer_phone,
         'document_type': entry.document_type,
-        'id_type': entry.id_type,
-        'id_number': entry.id_number,
-        'signature': entry.signature,
+        'id_verification': entry.id_verification,
         'notes': entry.notes
     } for entry in entries]
     return jsonify({'entries': data})
@@ -38,32 +35,42 @@ def new_entry():
     if request.is_json:
         data = request.get_json()
         entry = JournalEntry(
-            date=data.get('date'),
-            client_name=data.get('client_name'),
+            date=datetime.strptime(data.get('date'), "%Y-%m-%d"),
+            location=data.get('location'),
+            signer_name=data.get('signer_name'),
+            signer_address=data.get('signer_address'),
+            signer_phone=data.get('signer_phone'),
             document_type=data.get('document_type'),
-            id_type=data.get('id_type'),
-            id_number=data.get('id_number'),
-            signature=data.get('signature'),
+            id_verification=data.get('id_verification', False),
             notes=data.get('notes')
         )
         db.session.add(entry)
         db.session.commit()
-        return jsonify({'message': 'Journal entry created successfully'}), 201
+        return jsonify({'message': 'Journal entry created successfully', 'id': entry.id}), 201
     else:
         return jsonify({'error': 'Request must be JSON'}), 400
-    
+
 @journal_bp.route('/journal/<int:entry_id>', methods=['GET'])
 def get_entry(entry_id):
     entry = JournalEntry.query.get(entry_id)
     if entry:
-        return jsonify(entry=entry.to_dict())
+        return jsonify(entry={
+            'id': entry.id,
+            'date': entry.date.strftime('%Y-%m-%d') if entry.date else None,
+            'location': entry.location,
+            'signer_name': entry.signer_name,
+            'signer_address': entry.signer_address,
+            'signer_phone': entry.signer_phone,
+            'document_type': entry.document_type,
+            'id_verification': entry.id_verification,
+            'notes': entry.notes
+        })
     else:
         return jsonify(error="Not found"), 404
 
-@journal_bp.route('/journal/<int:entry_id>/pdf')
+@journal_bp.route('/journal/<int:entry_id>/pdf', methods=['GET'])
 def generate_pdf(entry_id):
     entry = JournalEntry.query.get_or_404(entry_id)
-
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
@@ -76,20 +83,21 @@ def generate_pdf(entry_id):
     y -= 30
 
     p.setFont("Helvetica", 12)
-    p.drawString(x_margin, y, f"Client: {entry.client_name}")
+    p.drawString(x_margin, y, f"Signer: {entry.signer_name}")
     y -= 20
     p.drawString(x_margin, y, f"Date: {entry.date.strftime('%Y-%m-%d') if entry.date else 'N/A'}")
     y -= 20
+    p.drawString(x_margin, y, f"Location: {entry.location or 'N/A'}")
+    y -= 20
+    p.drawString(x_margin, y, f"Address: {entry.signer_address or 'N/A'}")
+    y -= 20
+    p.drawString(x_margin, y, f"Phone: {entry.signer_phone or 'N/A'}")
+    y -= 20
     p.drawString(x_margin, y, f"Document Type: {entry.document_type}")
     y -= 20
-    p.drawString(x_margin, y, f"ID Type: {entry.id_type}")
-    y -= 20
-    p.drawString(x_margin, y, f"ID Number: {entry.id_number}")
-    y -= 20
-    p.drawString(x_margin, y, f"Signature: {entry.signature}")
+    p.drawString(x_margin, y, f"ID Verified: {'Yes' if entry.id_verification else 'No'}")
     y -= 20
 
-    # Handle multiline notes
     notes = entry.notes or ''
     textobject = p.beginText(x_margin, y)
     textobject.textLines(f"Notes:\n{notes}")
@@ -123,15 +131,28 @@ def upload_document(entry_id):
     save_path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(save_path)
 
-    entry.document_path = save_path
+    pdf_record = PDF(filename=filename, file_path=save_path, journal=entry.id)
+    db.session.add(pdf_record)
     db.session.commit()
 
-    return jsonify({"message": "Document uploaded", "document_path": save_path})
+    return jsonify({"message": "Document uploaded", "pdf_id": pdf_record.id, "file_path": save_path})
 
-@journal_bp.route('/journal/<int:entry_id>/document', methods=['GET'])
-def get_document(entry_id):
+@journal_bp.route('/journal/<int:entry_id>/pdfs', methods=['GET'])
+def get_entry_pdfs(entry_id):
     entry = JournalEntry.query.get(entry_id)
-    if not entry or not entry.document_path:
-        return jsonify({"error": "Document not found"}), 404
-    return send_file(entry.document_path, as_attachment=True)
+    if not entry:
+        return jsonify({"error": "Journal entry not found"}), 404
+    pdfs = PDF.query.filter_by(journal=entry.id).all()
+    return jsonify({
+        "pdfs": [
+            {"id": pdf.id, "filename": pdf.filename, "file_path": pdf.file_path}
+            for pdf in pdfs
+        ]
+    })
 
+@journal_bp.route('/pdf/<int:pdf_id>', methods=['GET'])
+def get_pdf(pdf_id):
+    pdf = PDF.query.get(pdf_id)
+    if not pdf or not os.path.exists(pdf.file_path):
+        return jsonify({"error": "PDF not found"}), 404
+    return send_file(pdf.file_path, as_attachment=True)

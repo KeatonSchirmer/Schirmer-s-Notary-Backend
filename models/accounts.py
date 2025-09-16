@@ -1,0 +1,55 @@
+from datetime import datetime
+from . import db
+
+class Admin(db.Model):
+    __tablename__ = "admin"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    address = db.Column(db.String(255))
+    license_number = db.Column(db.String(100))
+    license_expiration = db.Column(db.String(20))
+    password_hash = db.Column(db.String(255), nullable=False)
+    two_factor_enabled = db.Column(db.Boolean, default=False)
+    two_factor_code = db.Column(db.String(12))
+    two_factor_code_created = db.Column(db.DateTime)
+    notification_enabled = db.Column(db.Boolean, default=True)
+
+
+class Company(db.Model):
+    __tablename__ = "company"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    address = db.Column(db.String(255))
+    contact_points = db.relationship('ClientContact', backref='company', lazy=True)
+
+
+class Client(db.Model):
+    __tablename__ = "client"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    address = db.Column(db.String(255))
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    phone = db.Column(db.String(20))
+    password_hash = db.Column(db.String(255), nullable=False)
+    two_factor_enabled = db.Column(db.Boolean, default=False)
+    two_factor_code = db.Column(db.String(12))
+    two_factor_code_created = db.Column(db.DateTime)
+    company = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
+    pending_bookings = db.relationship('PendingBooking', backref='client', lazy=True)
+    accepted_bookings = db.relationship('AcceptedBooking', backref='client', lazy=True)
+    denied_bookings = db.relationship('DeniedBooking', backref='client', lazy=True)
+    completed_bookings = db.relationship('CompletedBooking', backref='client', lazy=True)
+
+
+class SchirmersNotary(db.Model):
+    __tablename__ = "schirmersnotary"
+
+    id = db.Column(db.Integer, primary_key=True)
+    address = db.Column(db.String(255))
+    office_start = db.Column(db.String(5))
+    office_end = db.Column(db.String(5))
+    available_days = db.Column(db.String(50))
