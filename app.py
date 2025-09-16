@@ -54,5 +54,6 @@ app.register_blueprint(mileage_bp, url_prefix="/mileage")
 app.register_blueprint(finances_bp, url_prefix="/finances")
 
 with app.app_context():
+    db.drop_all()
     db.create_all()
     start_scheduler()
