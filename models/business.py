@@ -10,8 +10,7 @@ class Finance(db.Model):
     description = db.Column(db.Text)
     amount = db.Column(Numeric(10, 2), nullable=False)
     date = db.Column(db.DateTime, default=datetime.utcnow)
-    job_id = db.Column(db.Integer, db.ForeignKey('bookings.id'))
-    job_finance = db.relationship('Booking', backref='finances', lazy=True)
+    job_finance = db.relationship('Bookings', backref='finances', lazy=True)
     pdfs = db.relationship('PDF', backref='finance', lazy=True)
 
 

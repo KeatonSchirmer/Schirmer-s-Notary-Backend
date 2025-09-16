@@ -11,7 +11,7 @@ class Booking(db.Model):
     time = db.Column(db.Time)
     location = db.Column(db.String(255))
     notes = db.Column(db.Text)
-    finances = db.relationship('Finance', backref='booking', lazy=True)
+    finances_id = db.Column(db.Integer, db.ForeignKey('finances.id'), nullable=True)
     mileage = db.relationship('Mileage', backref='booking', lazy=True)
     journal_id = db.Column(db.Integer, db.ForeignKey('journal.id'), nullable=True)
     status = db.Column(db.Enum("pending", "accepted", "denied", "completed", name="booking_status"), default="pending")
