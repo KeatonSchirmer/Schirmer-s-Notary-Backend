@@ -1,4 +1,4 @@
-from . import db
+from database.db import db
 
 class Booking(db.Model):
     __tablename__ = "bookings"

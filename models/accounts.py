@@ -1,5 +1,5 @@
 from datetime import datetime
-from . import db
+from database.db import db
 
 class Admin(db.Model):
     __tablename__ = "admin"

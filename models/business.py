@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import Numeric, Enum
-from . import db
+from database.db import db
 
 class Finance(db.Model):
     __tablename__ = "finances"
