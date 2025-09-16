@@ -3,7 +3,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from database.db import db
 from models.accounts import Admin, SchirmersNotary
-from models.bookings import AcceptedBooking
+from models.bookings import Booking
 from datetime import datetime, timedelta
 
 calendar_bp = Blueprint('calendar', __name__, template_folder='frontend/templates')
@@ -26,11 +26,11 @@ def add_event_to_calendar(event_data):
         'summary': event_data['name'],
         'description': f"Booking ID: {event_data['id']}\nNotes: {event_data.get('notes', '')}",
         'start': {
-            'dateTime': event_data['date_time'],
+            'dateTime': event_data['start_datetime'],
             'timeZone': 'America/New_York',
         },
         'end': {
-            'dateTime': event_data['end_time'],
+            'dateTime': event_data['end_datetime'],
             'timeZone': 'America/New_York',
         },
         'attendees': [
@@ -43,12 +43,13 @@ def add_event_to_calendar(event_data):
 @calendar_bp.route('/local', methods=['GET'])
 def get_local_events():
     user = get_default_user()
-    bookings = AcceptedBooking.query.filter_by(admin_id=user.id).all() if user else []
+    bookings = Booking.query.filter_by(status="accepted").all()
     return jsonify([{
         "id": b.id,
-        "name": b.name,
-        "date_time": b.date_time.isoformat() if hasattr(b.date_time, 'isoformat') else str(b.date_time),
-        "end_time": b.end_time.isoformat() if hasattr(b.end_time, 'isoformat') else str(b.end_time),
+        "name": b.service,
+        "date": b.date.strftime("%Y-%m-%d") if b.date else None,
+        "time": b.time.strftime("%H:%M") if b.time else None,
+        "location": b.location,
         "notes": b.notes,
         "client_id": b.client_id
     } for b in bookings])
@@ -60,24 +61,28 @@ def add_local_event():
     if not user:
         return jsonify({"error": "No booking user found"}), 404
 
-    booking = AcceptedBooking(
-        name=data.get('name'),
-        date_time=data.get('date_time'),
-        end_time=data.get('end_time'),
-        notes=data.get('notes'),
+    booking = Booking(
         client_id=data.get('client_id'),
-        admin_id=user.id
+        service=data.get('service'),
+        urgency=data.get('urgency', 'normal'),
+        date=datetime.strptime(data.get('date'), "%Y-%m-%d"),
+        time=datetime.strptime(data.get('time'), "%H:%M").time(),
+        location=data.get('location'),
+        notes=data.get('notes'),
+        status="accepted"
     )
     db.session.add(booking)
     db.session.commit()
 
     client_email = data.get('client_email')
+    start_datetime = f"{booking.date.strftime('%Y-%m-%d')}T{booking.time.strftime('%H:%M')}"
+    end_datetime = (datetime.combine(booking.date, booking.time) + timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M')
 
     add_event_to_calendar({
-        "name": booking.name,
+        "name": booking.service,
         "id": booking.id,
-        "date_time": booking.date_time if isinstance(booking.date_time, str) else booking.date_time.isoformat(),
-        "end_time": booking.end_time if isinstance(booking.end_time, str) else booking.end_time.isoformat(),
+        "start_datetime": start_datetime,
+        "end_datetime": end_datetime,
         "notes": booking.notes,
         "client_email": client_email
     })
@@ -86,13 +91,14 @@ def add_local_event():
 
 @calendar_bp.route('/local/<int:booking_id>', methods=['PUT'])
 def edit_local_event(booking_id):
-    booking = AcceptedBooking.query.get(booking_id)
+    booking = Booking.query.get(booking_id)
     if not booking:
         return jsonify({"error": "Booking not found"}), 404
     data = request.get_json()
-    booking.name = data.get('name', booking.name)
-    booking.date_time = data.get('date_time', booking.date_time)
-    booking.end_time = data.get('end_time', booking.end_time)
+    booking.service = data.get('service', booking.service)
+    booking.date = datetime.strptime(data.get('date'), "%Y-%m-%d") if data.get('date') else booking.date
+    booking.time = datetime.strptime(data.get('time'), "%H:%M").time() if data.get('time') else booking.time
+    booking.location = data.get('location', booking.location)
     booking.notes = data.get('notes', booking.notes)
     booking.client_id = data.get('client_id', booking.client_id)
     db.session.commit()
@@ -100,7 +106,7 @@ def edit_local_event(booking_id):
 
 @calendar_bp.route('/local/<int:booking_id>', methods=['DELETE'])
 def delete_local_event(booking_id):
-    booking = AcceptedBooking.query.get(booking_id)
+    booking = Booking.query.get(booking_id)
     if not booking:
         return jsonify({"error": "Booking not found"}), 404
     db.session.delete(booking)
@@ -154,11 +160,13 @@ def get_available_slots():
         })
         current += slot_length
 
-    busy_times = [
-        (b.date_time, b.end_time)
-        for b in AcceptedBooking.query.filter_by(date_time=date_str).all()
-        if b.date_time and b.end_time
-    ]
+    # Find busy times from accepted bookings
+    busy_times = []
+    accepted_bookings = Booking.query.filter_by(status="accepted", date=datetime.strptime(date_str, "%Y-%m-%d")).all()
+    for b in accepted_bookings:
+        start_dt = datetime.combine(b.date, b.time)
+        end_dt = start_dt + timedelta(minutes=30)
+        busy_times.append((start_dt, end_dt))
 
     def is_free(slot_start, slot_end):
         for busy_start, busy_end in busy_times:
@@ -175,8 +183,7 @@ def get_available_slots():
         }
         for slot in slots
         if is_free(datetime.strptime(slot["start"], "%Y-%m-%dT%H:%M"),
-                datetime.strptime(slot["end"], "%Y-%m-%dT%H:%M"))
+                   datetime.strptime(slot["end"], "%Y-%m-%dT%H:%M"))
     ]
 
     return jsonify({"slots": available_slots})
-

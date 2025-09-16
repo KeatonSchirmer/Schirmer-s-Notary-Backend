@@ -4,10 +4,9 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import smtplib
 from models.accounts import Client
-from models.bookings import AcceptedBooking
+from models.bookings import Booking
 
 clients_bp = Blueprint('contacts', __name__)
-
 
 @clients_bp.route('/all', methods=['GET'])
 def get_all_contacts():
@@ -25,11 +24,9 @@ def get_all_contacts():
 
 @clients_bp.route('/clients', methods=['GET', 'POST'])
 def get_contacts_visible_to_admin():
-    accepted_bookings = AcceptedBooking.query.all()
-    accepted_client_ids = {b.client_id for b in accepted_bookings}
-
-    visible_contacts = Client.query.filter(Client.id.in_(accepted_client_ids)).all()
-    
+    bookings = Booking.query.filter(Booking.status.in_(["accepted", "completed"])).all()
+    client_ids = {b.client_id for b in bookings}
+    visible_contacts = Client.query.filter(Client.id.in_(client_ids)).all()
     return jsonify({
         "clients": [
             {
@@ -57,15 +54,16 @@ def get_client(client_id):
 
 @clients_bp.route('/<int:client_id>/history', methods=['GET'])
 def get_client_history(client_id):
-    bookings = AcceptedBooking.query.filter_by(client_id=client_id).order_by(AcceptedBooking.date_time.desc()).all()
+    bookings = Booking.query.filter_by(client_id=client_id).order_by(Booking.date.desc(), Booking.time.desc()).all()
     return jsonify({
         'history': [
             {
                 'id': b.id,
-                'service': getattr(b, "service", None),
-                'status': getattr(b, "status", None),
-                'date_time': b.date_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(b.date_time, 'strftime') else str(b.date_time),
-                'notes': getattr(b, "notes", None)
+                'service': b.service,
+                'status': b.status,
+                'date': b.date.strftime('%Y-%m-%d') if b.date else None,
+                'time': b.time.strftime('%H:%M') if b.time else None,
+                'notes': b.notes
             } for b in bookings
         ]
     })
