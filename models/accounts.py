@@ -38,11 +38,9 @@ class Client(db.Model):
     two_factor_enabled = db.Column(db.Boolean, default=False)
     two_factor_code = db.Column(db.String(12))
     two_factor_code_created = db.Column(db.DateTime)
+    premium = db.Column(db.Enum("None", "Business", "Premium", "Corporate", "Custom", name="premium_tier"), default="None")
     company = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
-    pending_bookings = db.relationship('PendingBooking', backref='client', lazy=True)
-    accepted_bookings = db.relationship('AcceptedBooking', backref='client', lazy=True)
-    denied_bookings = db.relationship('DeniedBooking', backref='client', lazy=True)
-    completed_bookings = db.relationship('CompletedBooking', backref='client', lazy=True)
+    bookings = db.relationship('Booking', backref='client', lazy=True)
 
 
 class SchirmersNotary(db.Model):

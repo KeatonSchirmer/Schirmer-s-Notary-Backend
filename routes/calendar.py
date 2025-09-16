@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from database.db import db
-from models.accounts import Admin
+from models.accounts import Admin, SchirmersNotary
 from models.bookings import AcceptedBooking
 from datetime import datetime, timedelta
 
@@ -42,7 +42,6 @@ def add_event_to_calendar(event_data):
 
 @calendar_bp.route('/local', methods=['GET'])
 def get_local_events():
-    # Show all accepted bookings for the default user
     user = get_default_user()
     bookings = AcceptedBooking.query.filter_by(admin_id=user.id).all() if user else []
     return jsonify([{
@@ -107,3 +106,77 @@ def delete_local_event(booking_id):
     db.session.delete(booking)
     db.session.commit()
     return jsonify({"message": "Booking deleted."})
+
+@calendar_bp.route('/availability', methods=['POST'])
+def set_company_availability():
+    data = request.get_json()
+    company = SchirmersNotary.query.first()
+    if not company:
+        company = SchirmersNotary()
+
+    company.address = data.get("address", company.address)
+    company.office_start = data.get("office_start", company.office_start)
+    company.office_end = data.get("office_end", company.office_end)
+    days = data.get("available_days", company.available_days)
+    if isinstance(days, list):
+        company.available_days = ",".join(str(d) for d in days)
+    else:
+        company.available_days = days
+
+    db.session.add(company)
+    db.session.commit()
+    return jsonify({"message": "Company availability saved."}), 200
+
+@calendar_bp.route('/slots', methods=['GET'])
+def get_available_slots():
+    date_str = request.args.get("date")
+    if not date_str:
+        return jsonify({"error": "Missing date"}), 400
+
+    company = SchirmersNotary.query.first()
+    if not company or not company.office_start or not company.office_end or not company.available_days:
+        return jsonify({"slots": []})
+
+    available_days = company.available_days.split(",") if isinstance(company.available_days, str) else company.available_days
+    day_name = datetime.strptime(date_str, "%Y-%m-%d").strftime("%a")
+    if day_name not in available_days:
+        return jsonify({"slots": []})
+
+    office_start = datetime.strptime(f"{date_str} {company.office_start}", "%Y-%m-%d %H:%M")
+    office_end = datetime.strptime(f"{date_str} {company.office_end}", "%Y-%m-%d %H:%M")
+    slot_length = timedelta(minutes=30)
+    slots = []
+    current = office_start
+    while current + slot_length <= office_end:
+        slots.append({
+            "start": current.strftime("%Y-%m-%dT%H:%M"),
+            "end": (current + slot_length).strftime("%Y-%m-%dT%H:%M")
+        })
+        current += slot_length
+
+    busy_times = [
+        (b.date_time, b.end_time)
+        for b in AcceptedBooking.query.filter_by(date_time=date_str).all()
+        if b.date_time and b.end_time
+    ]
+
+    def is_free(slot_start, slot_end):
+        for busy_start, busy_end in busy_times:
+            if not (slot_end <= busy_start or slot_start >= busy_end):
+                return False
+        return True
+
+    available_slots = [
+        {
+            "id": f"{slot['start']}-{slot['end']}",
+            "date": date_str,
+            "time": slot["start"].split("T")[1],
+            "available": True
+        }
+        for slot in slots
+        if is_free(datetime.strptime(slot["start"], "%Y-%m-%dT%H:%M"),
+                datetime.strptime(slot["end"], "%Y-%m-%dT%H:%M"))
+    ]
+
+    return jsonify({"slots": available_slots})
+

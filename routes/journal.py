@@ -30,7 +30,7 @@ def get_journal_entries():
     } for entry in entries]
     return jsonify({'entries': data})
 
-@journal_bp.route('/journal/new', methods=['POST'])
+@journal_bp.route('/new', methods=['POST'])
 def new_entry():
     if request.is_json:
         data = request.get_json()
@@ -50,7 +50,7 @@ def new_entry():
     else:
         return jsonify({'error': 'Request must be JSON'}), 400
 
-@journal_bp.route('/journal/<int:entry_id>', methods=['GET'])
+@journal_bp.route('/<int:entry_id>', methods=['GET'])
 def get_entry(entry_id):
     entry = JournalEntry.query.get(entry_id)
     if entry:
@@ -68,7 +68,7 @@ def get_entry(entry_id):
     else:
         return jsonify(error="Not found"), 404
 
-@journal_bp.route('/journal/<int:entry_id>/pdf', methods=['GET'])
+@journal_bp.route('/<int:entry_id>/pdf', methods=['GET'])
 def generate_pdf(entry_id):
     entry = JournalEntry.query.get_or_404(entry_id)
     buffer = BytesIO()
@@ -114,7 +114,7 @@ def generate_pdf(entry_id):
         mimetype='application/pdf'
     )
 
-@journal_bp.route('/journal/<int:entry_id>/upload', methods=['POST'])
+@journal_bp.route('/<int:entry_id>/upload', methods=['POST'])
 def upload_document(entry_id):
     entry = JournalEntry.query.get(entry_id)
     if not entry:
@@ -137,7 +137,7 @@ def upload_document(entry_id):
 
     return jsonify({"message": "Document uploaded", "pdf_id": pdf_record.id, "file_path": save_path})
 
-@journal_bp.route('/journal/<int:entry_id>/pdfs', methods=['GET'])
+@journal_bp.route('/<int:entry_id>/pdfs', methods=['GET'])
 def get_entry_pdfs(entry_id):
     entry = JournalEntry.query.get(entry_id)
     if not entry:

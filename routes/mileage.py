@@ -67,6 +67,8 @@ def edit_mileage(mileage_id):
         mileage.distance = data['distance']
     if 'time' in data:
         mileage.time = data['time']
+    if 'job_id' in data:
+        mileage.job_id = data['job_id']    
     if 'notes' in data:
         mileage.notes = data['notes']
     if 'date' in data:

@@ -2,7 +2,6 @@ from flask import Flask, request
 from flask_migrate import Migrate
 from flask_cors import CORS
 from routes.jobs import jobs_bp
-from routes.service import service_bp
 from routes.journal import journal_bp
 from routes.clients import clients_bp
 from routes.calendar import calendar_bp
@@ -51,7 +50,6 @@ app.register_blueprint(journal_bp, url_prefix='/journal')
 app.register_blueprint(clients_bp, url_prefix='/clients')
 app.register_blueprint(calendar_bp, url_prefix='/calendar')
 app.register_blueprint(auth_bp, url_prefix='/auth')
-app.register_blueprint(service_bp, url_prefix='/service')
 app.register_blueprint(mileage_bp, url_prefix="/mileage")
 app.register_blueprint(finances_bp, url_prefix="/finances")
 

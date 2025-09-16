@@ -13,7 +13,7 @@ class JournalEntry(db.Model):
     document_type = db.Column(db.String(100), nullable=False)
     id_verification = db.Column(db.Boolean, default=False)
     notes = db.Column(db.Text)
-    completed_bookings = db.relationship('CompletedBooking', backref='journal_entry', lazy=True)
+    completed_bookings = db.relationship('Booking', backref='journal_entry', lazy=True)
     pdfs = db.relationship('PDF', backref='journal_entry', lazy=True)
 
 class PDF(db.Model):
@@ -23,3 +23,4 @@ class PDF(db.Model):
     filename = db.Column(db.String(255), nullable=False)
     file_path = db.Column(db.String(512), nullable=False)
     journal = db.Column(db.Integer, db.ForeignKey('journal.id'), nullable=False)
+    finance = db.Column(db.Integer, db.ForeignKey('finances.id'), nullable=True)
