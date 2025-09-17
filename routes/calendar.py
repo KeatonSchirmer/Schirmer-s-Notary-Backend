@@ -5,11 +5,14 @@ from database.db import db
 from models.accounts import Admin, SchirmersNotary
 from models.bookings import Booking
 from datetime import datetime, timedelta
+import os
 
 calendar_bp = Blueprint('calendar', __name__, template_folder='frontend/templates')
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
-SERVICE_ACCOUNT_FILE = '/credentials.json'
+SERVICE_ACCOUNT_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..', 'utils', 'credentials.json'
+)
 
 def get_calendar_service():
     creds = service_account.Credentials.from_service_account_file(
