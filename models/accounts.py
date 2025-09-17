@@ -48,3 +48,4 @@ class SchirmersNotary(db.Model):
     office_start = db.Column(db.String(5))
     office_end = db.Column(db.String(5))
     available_days = db.Column(db.String(50))
+    available_days_json = db.Column(db.Text)

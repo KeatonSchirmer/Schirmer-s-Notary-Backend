@@ -122,7 +122,6 @@ def set_company_availability():
     company = SchirmersNotary.query.first()
     if not company:
         company = SchirmersNotary()
-
     company.address = data.get("address", company.address)
     company.office_start = data.get("office_start", company.office_start)
     company.office_end = data.get("office_end", company.office_end)
@@ -131,7 +130,8 @@ def set_company_availability():
         company.available_days = ",".join(str(d) for d in days)
     else:
         company.available_days = days
-
+    if "available_days_json" in data:
+        company.available_days_json = data["available_days_json"]
     db.session.add(company)
     db.session.commit()
     return jsonify({"message": "Company availability saved."}), 200
@@ -145,7 +145,8 @@ def get_company_availability():
         "address": company.address,
         "office_start": company.office_start,
         "office_end": company.office_end,
-        "available_days": company.available_days.split(",") if company.available_days else []
+        "available_days": company.available_days.split(",") if company.available_days else [],
+        "available_days_json": company.available_days_json or "{}"
     })
 
 @calendar_bp.route('/slots', methods=['GET'])
