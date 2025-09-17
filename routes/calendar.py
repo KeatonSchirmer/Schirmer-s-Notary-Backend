@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 calendar_bp = Blueprint('calendar', __name__, template_folder='frontend/templates')
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
-SERVICE_ACCOUNT_FILE = '../utils/credentials.json'
+SERVICE_ACCOUNT_FILE = 'C:\\Users\\keasc\\Schirmer\'s Notary Backend\\utils\\credentials.json'
 
 def get_calendar_service():
     creds = service_account.Credentials.from_service_account_file(
