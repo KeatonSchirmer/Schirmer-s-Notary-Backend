@@ -136,6 +136,18 @@ def set_company_availability():
     db.session.commit()
     return jsonify({"message": "Company availability saved."}), 200
 
+@calendar_bp.route('/availability', methods=['GET'])
+def get_company_availability():
+    company = SchirmersNotary.query.first()
+    if not company:
+        return jsonify({"error": "No company found"}), 404
+    return jsonify({
+        "address": company.address,
+        "office_start": company.office_start,
+        "office_end": company.office_end,
+        "available_days": company.available_days.split(",") if company.available_days else []
+    })
+
 @calendar_bp.route('/slots', methods=['GET'])
 def get_available_slots():
     date_str = request.args.get("date")
