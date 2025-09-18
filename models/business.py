@@ -13,6 +13,15 @@ class Finance(db.Model):
     booking_id = db.Column(db.Integer, db.ForeignKey('bookings.id'))
     pdfs = db.relationship('PDF', backref='finance', lazy=True)
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "type": self.type,
+            "description": self.description,
+            "amount": float(self.amount) if self.amount is not None else None,
+            "date": self.date.strftime("%Y-%m-%d") if self.date else "",
+            "booking_id": self.booking_id
+        }
 
 class Mileage(db.Model):
     __tablename__ = "mileage"
@@ -24,4 +33,14 @@ class Mileage(db.Model):
     notes = db.Column(db.Text)
     job_id = db.Column(db.Integer, db.ForeignKey('bookings.id'))
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "date": self.date.strftime("%Y-%m-%d") if self.date else "",
+            "distance": self.distance,
+            "time": self.time,
+            "notes": self.notes,
+            "job_id": self.job_id
+        }
+    
     
