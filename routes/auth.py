@@ -192,3 +192,4 @@ def confirm_2fa():
 def twofa_status():
     verified = session.get('twofa_verified', False)
     return {'twofa_verified': verified}, 200
+

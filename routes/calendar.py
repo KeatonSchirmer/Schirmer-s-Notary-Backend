@@ -156,16 +156,18 @@ def get_available_slots():
         return jsonify({"error": "Missing date"}), 400
 
     company = SchirmersNotary.query.first()
-    if not company or not company.office_start or not company.office_end or not company.available_days:
+    if not company or not company.available_days_json:
         return jsonify({"slots": []})
 
-    available_days = company.available_days.split(",") if isinstance(company.available_days, str) else company.available_days
+    import json
+    days_json = json.loads(company.available_days_json)
     day_name = datetime.strptime(date_str, "%Y-%m-%d").strftime("%a")
-    if day_name not in available_days:
+    day_hours = days_json.get(day_name)
+    if not day_hours:
         return jsonify({"slots": []})
 
-    office_start = datetime.strptime(f"{date_str} {company.office_start}", "%Y-%m-%d %H:%M")
-    office_end = datetime.strptime(f"{date_str} {company.office_end}", "%Y-%m-%d %H:%M")
+    office_start = datetime.strptime(f"{date_str} {day_hours['start']}", "%Y-%m-%d %H:%M")
+    office_end = datetime.strptime(f"{date_str} {day_hours['end']}", "%Y-%m-%d %H:%M")
     slot_length = timedelta(minutes=30)
     slots = []
     current = office_start
