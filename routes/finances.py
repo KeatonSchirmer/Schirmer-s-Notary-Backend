@@ -15,7 +15,6 @@ def add_finance():
     data = request.get_json()
     entry = Finance(
         type=data["type"],
-        category=data["category"],
         description=data.get("description", ""),
         amount=data["amount"],
         date=datetime.strptime(data["date"], "%Y-%m-%d")
@@ -32,7 +31,6 @@ def update_finance(finance_id):
     if not entry:
         return jsonify({"error": "Finance entry not found"}), 404
     entry.type = data.get("type", entry.type)
-    entry.category = data.get("category", entry.category)
     entry.description = data.get("description", entry.description)
     entry.amount = data.get("amount", entry.amount)
     if "date" in data:

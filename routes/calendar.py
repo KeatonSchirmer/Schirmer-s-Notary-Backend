@@ -64,12 +64,20 @@ def add_local_event():
     if not user:
         return jsonify({"error": "No booking user found"}), 404
 
+    date_str = data.get('date')
+    time_str = data.get('time')
+
+    if date_str and 'T' in date_str:
+        date_part, time_part = date_str.split('T')
+        date_str = date_part
+        time_str = time_part
+
     booking = Booking(
         client_id=data.get('client_id'),
         service=data.get('service'),
         urgency=data.get('urgency', 'normal'),
-        date=datetime.strptime(data.get('date'), "%Y-%m-%d"),
-        time=datetime.strptime(data.get('time'), "%H:%M").time(),
+        date=datetime.strptime(date_str, "%Y-%m-%d"),
+        time=datetime.strptime(time_str, "%H:%M").time() if time_str else None,
         location=data.get('location'),
         notes=data.get('notes'),
         status="accepted"
@@ -91,7 +99,6 @@ def add_local_event():
     })
 
     return jsonify({"message": "Booking added and sent to Google Calendar.", "id": booking.id}), 201
-
 @calendar_bp.route('/local/<int:booking_id>', methods=['PUT'])
 def edit_local_event(booking_id):
     booking = Booking.query.get(booking_id)

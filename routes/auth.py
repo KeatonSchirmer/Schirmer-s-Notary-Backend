@@ -19,14 +19,14 @@ def login():
     password = data.get('password')
 
     admin = Admin.query.filter_by(email=email).first()
-    if admin and check_password_hash(admin.password_hash, password):
+    if admin and admin.password_hash and check_password_hash(admin.password_hash, password):
         session["username"] = admin.name
         session['user_id'] = admin.id
         session['user_type'] = 'admin'
         return jsonify({"message": "Login successful", "user_id": admin.id, "user_type": "admin"}), 200
 
     client = Client.query.filter_by(email=email).first()
-    if client and check_password_hash(client.password_hash, password):
+    if client and client.password_hash and check_password_hash(client.password_hash, password):
         session["username"] = client.name
         session['user_id'] = client.id
         session['user_type'] = 'client'

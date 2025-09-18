@@ -73,19 +73,33 @@ def create_client():
     data = request.get_json()
     name = data.get('name')
     email = data.get('email')
-    company = data.get('company')
+    company_name = data.get('company_name')
+    company_address = data.get('company_address')
 
     if not name or not email:
         return jsonify({'error': 'Name and email are required.'}), 400
 
-    client = Client(name=name, email=email, company=company)
+    company_obj = None
+    if company_name:
+        from models.accounts import Company 
+        company_obj = Company.query.filter_by(name=company_name).first()
+        if not company_obj:
+            company_obj = Company(name=company_name, address=company_address)
+            db.session.add(company_obj)
+            db.session.commit()
+
+    client = Client(
+        name=name,
+        email=email,
+        company_id=company_obj.id if company_obj else None
+    )
     db.session.add(client)
     db.session.commit()
     return jsonify({
         'id': client.id,
         'name': client.name,
         'email': client.email,
-        'company': client.company
+        'company_id': client.company_id
     }), 201
 
 @clients_bp.route('/<int:client_id>', methods=['DELETE'])
