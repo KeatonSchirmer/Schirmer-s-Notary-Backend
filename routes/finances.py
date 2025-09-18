@@ -24,6 +24,13 @@ def add_finance():
     db.session.refresh(entry)
     return jsonify(entry.to_dict())
 
+@finances_bp.route('/<int:finance_id>', methods=['GET'])
+def get_finance(finance_id):
+    entry = Finance.query.get(finance_id)
+    if not entry:
+        return jsonify({"error": "Finance entry not found"}), 404
+    return jsonify(entry.to_dict())
+
 @finances_bp.route('/<int:finance_id>', methods=['PUT'])
 def update_finance(finance_id):
     data = request.get_json()

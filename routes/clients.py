@@ -8,6 +8,15 @@ from models.bookings import Booking
 
 clients_bp = Blueprint('contacts', __name__)
 
+def serialize_company(company):
+    if not company:
+        return None
+    return {
+        "id": company.id,
+        "name": company.name,
+        "address": company.address
+    }
+
 @clients_bp.route('/all', methods=['GET'])
 def get_all_contacts():
     contacts = Client.query.order_by(Client.name).all()
@@ -17,7 +26,7 @@ def get_all_contacts():
                 "id": c.id,
                 "name": c.name,
                 "email": c.email,
-                "company": getattr(c, "company", None)
+                "company": serialize_company(getattr(c, "company", None))
             } for c in contacts
         ]
     })
@@ -33,7 +42,7 @@ def get_contacts_visible_to_admin():
                 "id": c.id,
                 "name": c.name,
                 "email": c.email,
-                "company": getattr(c, "company", None)
+                "company": serialize_company(getattr(c, "company", None))
             } for c in visible_contacts
         ]
     })
@@ -49,7 +58,7 @@ def get_client(client_id):
         'id': client.id,
         'name': client.name,
         'email': client.email,
-        'company': getattr(client, "company", None)
+        'company': serialize_company(getattr(client, "company", None))
     })
 
 @clients_bp.route('/<int:client_id>/history', methods=['GET'])

@@ -31,7 +31,6 @@ def get_all_bookings():
         for b in bookings
     ])
 
-# Create a new booking (always starts as pending)
 @jobs_bp.route('/request', methods=['POST'])
 def request_booking():
     data = request.get_json()
