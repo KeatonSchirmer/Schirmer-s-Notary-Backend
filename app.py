@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, session, jsonify
 from flask_migrate import Migrate
 from flask_cors import CORS
 from routes.jobs import jobs_bp
@@ -42,6 +42,14 @@ def log_origin():
 @app.route('/')
 def index():
     return "Schirmer's Notary API is running."
+
+@app.route('/session', methods=['GET'])
+def get_session():
+    return jsonify({
+        "user_id": session.get("user_id"),
+        "user_type": session.get("user_type"),
+        "username": session.get("username")
+    })
 
 migrate = Migrate(app, db)
 
