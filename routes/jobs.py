@@ -75,7 +75,22 @@ def request_booking():
     db.session.commit()
     return jsonify({"message": "Booking request submitted successfully", "id": booking.id}), 201
 
-# Accept a booking
+@jobs_bp.route('/<int:booking_id>', methods=['GET'])
+def get_booking(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    return jsonify({
+        "id": booking.id,
+        "client_id": booking.client_id,
+        "service": booking.service,
+        "urgency": booking.urgency,
+        "date": booking.date.strftime("%Y-%m-%d") if booking.date else None,
+        "time": booking.time.strftime("%H:%M") if booking.time else None,
+        "location": booking.location,
+        "notes": booking.notes,
+        "journal_id": booking.journal_id,
+        "status": booking.status
+    })
+
 @jobs_bp.route('/<int:booking_id>/accept', methods=['POST'])
 def accept_booking(booking_id):
     booking = Booking.query.get_or_404(booking_id)
@@ -83,7 +98,6 @@ def accept_booking(booking_id):
     db.session.commit()
     return jsonify({"message": "Booking accepted", "id": booking.id}), 200
 
-# Deny a booking
 @jobs_bp.route('/<int:booking_id>/deny', methods=['POST'])
 def deny_booking(booking_id):
     booking = Booking.query.get_or_404(booking_id)
@@ -92,7 +106,6 @@ def deny_booking(booking_id):
     db.session.commit()
     return jsonify({"message": "Booking denied", "id": booking.id}), 200
 
-# Complete a booking
 @jobs_bp.route('/<int:booking_id>/complete', methods=['POST'])
 def complete_booking(booking_id):
     booking = Booking.query.get_or_404(booking_id)
@@ -101,7 +114,6 @@ def complete_booking(booking_id):
     db.session.commit()
     return jsonify({"message": "Booking marked as completed", "id": booking.id}), 200
 
-# Edit a booking
 @jobs_bp.route('/<int:booking_id>/edit', methods=['PATCH'])
 def edit_booking(booking_id):
     booking = Booking.query.get_or_404(booking_id)
@@ -123,7 +135,6 @@ def edit_booking(booking_id):
     db.session.commit()
     return jsonify({"message": "Booking updated"}), 200
 
-# Delete a booking
 @jobs_bp.route('/<int:booking_id>', methods=['DELETE'])
 def delete_booking(booking_id):
     booking = Booking.query.get_or_404(booking_id)
@@ -131,7 +142,6 @@ def delete_booking(booking_id):
     db.session.commit()
     return jsonify({"message": "Booking deleted"}), 200
 
-# Get bookings by status
 @jobs_bp.route('/pending', methods=['GET'])
 def get_pending_bookings():
     bookings = Booking.query.filter_by(status="pending").all()
