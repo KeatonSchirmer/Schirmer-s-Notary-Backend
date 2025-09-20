@@ -60,8 +60,3 @@ app.register_blueprint(calendar_bp, url_prefix='/calendar')
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(mileage_bp, url_prefix="/mileage")
 app.register_blueprint(finances_bp, url_prefix="/finances")
-
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        app.run(debug=True)

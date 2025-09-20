@@ -57,6 +57,39 @@ def get_contacts_visible_to_admin():
         ]
     })
 
+@clients_bp.route('/<int:client_id>', methods=['PUT'])
+def edit_client(client_id):
+    data = request.get_json()
+    client = Client.query.get_or_404(client_id)
+
+    client.name = data.get('name', client.name)
+    client.address = data.get('address', client.address)
+    client.email = data.get('email', client.email)
+    client.phone = data.get('phone', client.phone)
+    client.premium = data.get('premium', client.premium)
+
+    company_name = data.get('company_name')
+    company_address = data.get('company_address')
+    if company_name:
+        from models.accounts import Company
+        company_obj = Company.query.filter_by(name=company_name).first()
+        if not company_obj:
+            company_obj = Company(name=company_name, address=company_address)
+            db.session.add(company_obj)
+            db.session.commit()
+        client.company_id = company_obj.id
+
+    db.session.commit()
+    return jsonify({
+        'id': client.id,
+        'name': client.name,
+        'address': client.address,
+        'email': client.email,
+        'phone': client.phone,
+        'premium': client.premium,
+        'company_id': client.company_id
+    }), 200
+
 @clients_bp.route('/<int:client_id>', methods=['GET', 'OPTIONS'])
 def get_client(client_id):
     if request.method == 'OPTIONS':
