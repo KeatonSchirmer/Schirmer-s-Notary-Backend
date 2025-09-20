@@ -11,7 +11,7 @@ calendar_bp = Blueprint('calendar', __name__, template_folder='frontend/template
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 SERVICE_ACCOUNT_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), '..', 'utils', 'credentials.json'
+    os.path.dirname(os.path.abspath(__file__)), '..', 'utils', 'schirmersnotary.json'
 )
 
 def get_calendar_service():
@@ -25,7 +25,6 @@ def get_default_user():
 
 def add_event_to_calendar(booking):
     SCOPES = ['https://www.googleapis.com/auth/calendar']
-    SERVICE_ACCOUNT_FILE = '/utils/schirmersnotary.json'
     CALENDAR_ID = 'cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com'
 
     credentials = service_account.Credentials.from_service_account_file(
