@@ -20,6 +20,29 @@ def get_calendar_service():
     service = build('calendar', 'v3', credentials=creds)
     return service
 
+def get_google_busy_times(date_str):
+    service = get_calendar_service()
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+    start_of_day = date_obj.strftime("%Y-%m-%dT00:00:00")
+    end_of_day = date_obj.strftime("%Y-%m-%dT23:59:59")
+    events_result = service.events().list(
+        calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
+        timeMin=start_of_day + '-06:00',  # adjust timezone as needed
+        timeMax=end_of_day + '-06:00',
+        singleEvents=True,
+        orderBy='startTime'
+    ).execute()
+    events = events_result.get('items', [])
+    busy_times = []
+    for event in events:
+        start = event['start'].get('dateTime')
+        end = event['end'].get('dateTime')
+        if start and end:
+            start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
+            end_dt = datetime.strptime(end[:16], "%Y-%m-%dT%H:%M")
+            busy_times.append((start_dt, end_dt))
+    return busy_times
+
 def get_default_user():
     return Admin.query.first()
 
@@ -190,11 +213,15 @@ def get_available_slots():
         current += slot_length
 
     busy_times = []
+    # Local accepted bookings
     accepted_bookings = Booking.query.filter_by(status="accepted", date=datetime.strptime(date_str, "%Y-%m-%d")).all()
     for b in accepted_bookings:
         start_dt = datetime.combine(b.date, b.time)
         end_dt = start_dt + timedelta(minutes=30)
         busy_times.append((start_dt, end_dt))
+
+    # Add Google Calendar busy times
+    busy_times += get_google_busy_times(date_str)
 
     def is_free(slot_start, slot_end):
         for busy_start, busy_end in busy_times:
