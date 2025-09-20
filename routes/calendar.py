@@ -23,25 +23,33 @@ def get_calendar_service():
 def get_default_user():
     return Admin.query.first()
 
-def add_event_to_calendar(event_data):
-    service = get_calendar_service()
+def add_event_to_calendar(booking):
+    SCOPES = ['https://www.googleapis.com/auth/calendar']
+    SERVICE_ACCOUNT_FILE = '/utils/schirmersnotary.json'
+    CALENDAR_ID = 'cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com'
+
+    credentials = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+
+    service = build('calendar', 'v3', credentials=credentials)
+
     event = {
-        'summary': event_data['name'],
-        'description': f"Booking ID: {event_data['id']}\nNotes: {event_data.get('notes', '')}",
+        'summary': booking.service,
+        'description': booking.notes,
         'start': {
-            'dateTime': event_data['start_datetime'],
-            'timeZone': 'America/New_York',
+            'dateTime': f"{booking.date.strftime('%Y-%m-%d')}T{booking.time.strftime('%H:%M:%S')}",
+            'timeZone': 'Central/Chicago',
         },
         'end': {
-            'dateTime': event_data['end_datetime'],
-            'timeZone': 'America/New_York',
+            'dateTime': (datetime.combine(booking.date, booking.time) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S'),
+            'timeZone': 'Central/Chicago',
         },
         'attendees': [
-            {'email': event_data.get('client_email', '')}
-        ] if event_data.get('client_email') else []
+            {'email': booking.client.email}
+        ],
     }
-    created_event = service.events().insert(calendarId='primary', body=event).execute()
-    return created_event
+
+    service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
 
 @calendar_bp.route('/local', methods=['GET'])
 def get_local_events():

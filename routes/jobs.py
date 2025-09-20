@@ -1,16 +1,52 @@
 from flask import Blueprint, jsonify, request, session, send_file
 from datetime import datetime
 from database.db import db
+import smtplib
+from email.mime.text import MIMEText
 import os
 from models.journal import PDF
 from models.accounts import Client
 from models.business import Finance, Mileage
 from models.bookings import Booking
+from routes.calendar import add_event_to_calendar
 
 jobs_bp = Blueprint('jobs', __name__)
 
 PDF_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'database', 'pdfs')
 os.makedirs(PDF_FOLDER, exist_ok=True)
+
+def send_confirmation_email(to_email, name, service, date, time):
+    subject = "Booking Confirmation"
+    body = f"""Hello {name},
+
+Thank you for booking with Schirmer's Notary!    
+
+Your booking for {service} on {date} at {time} has been received.
+
+As the sole notary I want to ensure you receive the best services possible.
+I ask for your understanding and patience as I manage my schedule to accommodate all clients.
+We will contact you soon with further details.
+
+Thank you,
+Schirmer's Notary
+"""
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['From'] = "no-reply@schirmersnotary.com"
+    msg['To'] = to_email
+
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    smtp_user = 'schirmer.nikolas@gmail.com'
+    smtp_pass = 'cgyqzlbjwrftwqok'
+
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(msg['From'], [msg['To']], msg.as_string())
+    except Exception as e:
+        print(f"Failed to send confirmation email: {e}")
 
 @jobs_bp.route('/', methods=['GET'])
 def get_all_bookings():
@@ -73,6 +109,7 @@ def request_booking():
     )
     db.session.add(booking)
     db.session.commit()
+    send_confirmation_email(email, name, service, date, time)
     return jsonify({"message": "Booking request submitted successfully", "id": booking.id}), 201
 
 @jobs_bp.route('/<int:booking_id>', methods=['GET'])
@@ -96,6 +133,7 @@ def accept_booking(booking_id):
     booking = Booking.query.get_or_404(booking_id)
     booking.status = "accepted"
     db.session.commit()
+    add_event_to_calendar(booking)
     return jsonify({"message": "Booking accepted", "id": booking.id}), 200
 
 @jobs_bp.route('/<int:booking_id>/deny', methods=['POST'])

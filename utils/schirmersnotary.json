@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "schirmersnotary",
+  "private_key_id": "426e39fa7395efe1c6fd9d0f57f79a66978ed9c2",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDrU3cvnjZxTdHR\n7zM0WVmAnR3lbh/OLQsL65xBkjTvx0dj9J2JdcWZuIpXz6Go3x5dmDOU6mjlcQ7x\nVXW/FfK9ZPXGZv4llcsB5kvltUYLBmTkvwfyaX2J3NfiEWDG1vG7URgrKYTQ1Qgv\nWjvWG1GnGoNDYNVApwQloTJXU/q3m/qYrg3SPH7WPGdcr7x+/buGUKFooSnmNmDc\n5/Ihx0T9JmjmV6S8RWb0PPgyHem0drxJy8XF4vSxUBKEXqKhhFH7ETv2Kl163amK\n2DdHdKRxGPe/uBkJjCU2qOh0NOCANm4Th/6XG3gFbbfT9hRNgQ2C7rg559jHkqEp\nkSZxZplNAgMBAAECggEAKi7dRcomyLMyKh9mbpsYneMsJYESzvbIjOO4cBGZDyVJ\n8Qs7hRU5LVfE5r43pImQTCc5EdfeI0jbrJuM3oq850HWg7DZHFwoVogVcVEIA/hq\ntA1hS40o3YJaqXHDhwknLlR4UF5iKjwRuklCwhvGDH4GaxjLyUnXBrbJSxmo7un9\nKByOFgdPw7gk2XuD5Fre0e6lVVWK0AzLbTSQGZWyiN869MPUG62mMk+lK6p3U+kY\nszF8HDMkX/0RKBGpOkfMYHmSP+4+abg97D8m7UZi6MLkvgro/FJ2mrD1tJ2T141M\nWVjv1di56vE0bB3qCBSNgzaKZ4BevZhn6qyHlGPXEQKBgQD2P78r/p9Z2r3scbCO\nK/rx9+0mCk9Wmm5pX87eJaOzCBiowKsgFpD6SZJpsb1dEpY8B23sQBn9+LuOk/5J\nCF2c8LUlvUxqhK5Ha5m5juMkh4Q1Su9g94YS55RRNiW4ZCHh98ZYD/XKuFgEFPI4\nwhJrQTMwhAb8kHevik4SVsL+EQKBgQD0pP3OEMB6cTJnpAUKRfDz4+utiF5tsnAn\nQWPFuSrfhEyYZPBlTNmkOCJRMgodJnJWbKCDjpKFkPhWsnGXZ8g+U2k9DIbtscMc\nDVGstdUIXI6N7eyzk4lfLh/+0h7FaeDDHh66f79mD7N/JUT0yOBry1Poz+LIkjCs\n0GLv/1jbfQKBgAh2ME+GtFsWFSimz3ZTNJBUAKYp/IfxTpH4ZNdlW7avNIm39Slp\nHRo8pPdU0Dj+hoMRjklr+nirr2Y616YSz4SxEMh3NMUEQijaHbIuoseCkJx0Mr2W\nQ9kqdAJGZg1sA24MYZhtE/kfVIbvYVNp99APsX6dStAq9rHlgsFGkfTBAoGBAO2l\nMF7x6ueF+j6vF65JDqz75D5nz8KjqUqYvICfRMRnUbhfpR3iLzDUzpEtGKIEbOED\nGFFzN2XD01j0cl9vExdoEzyYZKGVIkCnt4UcBNrgfiHk0yAF21W4CqCQIBAIr6sa\nISNtYNGVwvlpjLh0QXy0wMfQ2S2YxOu6acFUvE5JAoGBAOY1wzUFPRGYo0zo2tq/\nHHjLMYtiFAK6W350ogQk7lr8QBWdmDFP2ypI3DeL6iPEdHHiEBUBB5wQLhAqvCK5\nSZB3Z/M15qWXq0xs2oLfxDgqXFGjJBfxD/hDINxEJtTMdn4YzaoU3Jiayc0hwpDF\namI3SYT+d6VoxV/n0FKy7Ab6\n-----END PRIVATE KEY-----\n",
+  "client_email": "schirmersnotary@schirmersnotary.iam.gserviceaccount.com",
+  "client_id": "117545386918651225742",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/schirmersnotary%40schirmersnotary.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
