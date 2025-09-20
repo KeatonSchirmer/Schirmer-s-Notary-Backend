@@ -37,11 +37,11 @@ def add_event_to_calendar(booking):
         'description': booking.notes,
         'start': {
             'dateTime': f"{booking.date.strftime('%Y-%m-%d')}T{booking.time.strftime('%H:%M:%S')}",
-            'timeZone': 'Central/Chicago',
+            'timeZone': 'America/Chicago',
         },
         'end': {
             'dateTime': (datetime.combine(booking.date, booking.time) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S'),
-            'timeZone': 'Central/Chicago',
+            'timeZone': 'America/Chicago',
         },
         'attendees': [
             {'email': booking.client.email}
