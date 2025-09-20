@@ -27,6 +27,7 @@ class Mileage(db.Model):
     __tablename__ = "mileage"
 
     id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100))
     date = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     distance = db.Column(db.Float, nullable=False)
     time = db.Column(db.String(10))

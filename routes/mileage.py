@@ -13,7 +13,8 @@ def add_mileage():
             date=datetime.strptime(data.get('date'), "%Y-%m-%d") if data.get('date') else datetime.utcnow(),
             distance=data.get('distance'),
             time=data.get('time'),
-            notes=data.get('notes')
+            notes=data.get('notes'),
+            title=data.get('title', '')
         )
         db.session.add(mileage)
         db.session.commit()
@@ -35,6 +36,7 @@ def get_mileage():
                     "time": m.time,
                     "distance": m.distance,
                     "notes": m.notes,
+                    "title": m.title,
                 }
                 for m in entries
             ]
@@ -62,13 +64,14 @@ def edit_mileage(mileage_id):
     if not mileage:
         return jsonify({"error": "Mileage entry not found"}), 404
 
-    # Update fields if provided
     if 'distance' in data:
         mileage.distance = data['distance']
     if 'time' in data:
         mileage.time = data['time']
     if 'job_id' in data:
-        mileage.job_id = data['job_id']    
+        mileage.job_id = data['job_id']
+    if 'title' in data:
+        mileage.title = data['title']
     if 'notes' in data:
         mileage.notes = data['notes']
     if 'date' in data:
