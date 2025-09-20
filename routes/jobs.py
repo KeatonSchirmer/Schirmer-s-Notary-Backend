@@ -35,6 +35,18 @@ def get_all_bookings():
 def request_booking():
     data = request.get_json()
     client_id = data.get('client_id')
+    name = data.get('name')
+    email = data.get('email')
+    phone = data.get('phone')
+
+    if not client_id and email:
+        client = Client.query.filter_by(email=email).first()
+        if not client:
+            client = Client(name=name, email=email, phone=phone, password_hash=None)
+            db.session.add(client)
+            db.session.commit()
+        client_id = client.id
+
     service = data.get('service')
     urgency = data.get('urgency', 'normal')
     date = data.get('date')
@@ -43,7 +55,6 @@ def request_booking():
     notes = data.get('notes', '')
     journal_id = data.get('journal_id')
 
-    # Debug log
     print(f"client_id={client_id}, service={service}, date={date}, time={time}")
 
     if not all([client_id, service, date, time]):
@@ -62,8 +73,7 @@ def request_booking():
     )
     db.session.add(booking)
     db.session.commit()
-    if not all([client_id, service, date, time]):
-        return jsonify({"message": "Booking request submitted successfully", "id": booking.id}), 201
+    return jsonify({"message": "Booking request submitted successfully", "id": booking.id}), 201
 
 # Accept a booking
 @jobs_bp.route('/<int:booking_id>/accept', methods=['POST'])

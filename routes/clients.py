@@ -17,6 +17,16 @@ def serialize_company(company):
         "address": company.address
     }
 
+@clients_bp.route('/search', methods=['GET'])
+def search_client_by_email():
+    email = request.args.get('email')
+    if not email:
+        return jsonify({'error': 'Email required'}), 400
+    client = Client.query.filter_by(email=email).first()
+    if client:
+        return jsonify({'id': client.id, 'name': client.name, 'email': client.email, 'phone': client.phone})
+    return jsonify({'id': None})
+
 @clients_bp.route('/all', methods=['GET'])
 def get_all_contacts():
     contacts = Client.query.order_by(Client.name).all()
