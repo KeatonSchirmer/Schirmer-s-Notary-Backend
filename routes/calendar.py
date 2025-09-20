@@ -43,9 +43,6 @@ def add_event_to_calendar(booking):
             'dateTime': (datetime.combine(booking.date, booking.time) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S'),
             'timeZone': 'America/Chicago',
         },
-        'attendees': [
-            {'email': booking.client.email}
-        ],
     }
 
     service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
