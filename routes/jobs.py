@@ -43,6 +43,9 @@ def request_booking():
     notes = data.get('notes', '')
     journal_id = data.get('journal_id')
 
+    # Debug log
+    print(f"client_id={client_id}, service={service}, date={date}, time={time}")
+
     if not all([client_id, service, date, time]):
         return jsonify({'error': 'Missing required fields'}), 400
 
@@ -59,7 +62,8 @@ def request_booking():
     )
     db.session.add(booking)
     db.session.commit()
-    return jsonify({"message": "Booking request submitted successfully", "id": booking.id}), 201
+    if not all([client_id, service, date, time]):
+        return jsonify({"message": "Booking request submitted successfully", "id": booking.id}), 201
 
 # Accept a booking
 @jobs_bp.route('/<int:booking_id>/accept', methods=['POST'])
