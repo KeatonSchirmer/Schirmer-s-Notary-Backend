@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, send_file
 from io import BytesIO
 from reportlab.pdfgen import canvas
-from models.journal import JournalEntry, PDF
+from models.journal import JournalEntry, PDF, JournalSigner
 from database.db import db
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
@@ -34,17 +34,26 @@ def get_journal_entries():
 def new_entry():
     if request.is_json:
         data = request.get_json()
+        signers_data = data.get('signers', [])
         entry = JournalEntry(
             date=datetime.strptime(data.get('date'), "%Y-%m-%d"),
             location=data.get('location'),
-            signer_name=data.get('signer_name'),
-            signer_address=data.get('signer_address'),
-            signer_phone=data.get('signer_phone'),
             document_type=data.get('document_type'),
             id_verification=data.get('id_verification', False),
             notes=data.get('notes')
         )
         db.session.add(entry)
+        db.session.flush()
+
+        for signer in signers_data:
+            signer_obj = JournalSigner(
+                journal_id=entry.id,
+                name=signer.get('name'),
+                address=signer.get('address'),
+                phone=signer.get('phone')
+            )
+            db.session.add(signer_obj)
+
         db.session.commit()
         return jsonify({'message': 'Journal entry created successfully', 'id': entry.id}), 201
     else:
