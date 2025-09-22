@@ -104,20 +104,27 @@ def generate_pdf(entry_id):
     y -= 30
 
     p.setFont("Helvetica", 12)
-    p.drawString(x_margin, y, f"Signer: {entry.signer_name}")
-    y -= 20
     p.drawString(x_margin, y, f"Date: {entry.date.strftime('%Y-%m-%d') if entry.date else 'N/A'}")
     y -= 20
     p.drawString(x_margin, y, f"Location: {entry.location or 'N/A'}")
-    y -= 20
-    p.drawString(x_margin, y, f"Address: {entry.signer_address or 'N/A'}")
-    y -= 20
-    p.drawString(x_margin, y, f"Phone: {entry.signer_phone or 'N/A'}")
     y -= 20
     p.drawString(x_margin, y, f"Document Type: {entry.document_type}")
     y -= 20
     p.drawString(x_margin, y, f"ID Verified: {'Yes' if entry.id_verification else 'No'}")
     y -= 20
+
+    # List all signers
+    if entry.signers:
+        for idx, signer in enumerate(entry.signers, start=1):
+            p.drawString(x_margin, y, f"Signer {idx}: {signer.name}")
+            y -= 20
+            p.drawString(x_margin + 20, y, f"Address: {signer.address or 'N/A'}")
+            y -= 20
+            p.drawString(x_margin + 20, y, f"Phone: {signer.phone or 'N/A'}")
+            y -= 20
+    else:
+        p.drawString(x_margin, y, "No signers listed.")
+        y -= 20
 
     notes = entry.notes or ''
     textobject = p.beginText(x_margin, y)
