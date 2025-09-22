@@ -159,7 +159,7 @@ def upload_document(entry_id):
     save_path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(save_path)
 
-    pdf_record = PDF(filename=filename, file_path=save_path, journal=entry.id)
+    pdf_record = PDF(filename=filename, file_path=save_path, journal_id=entry.id)
     db.session.add(pdf_record)
     db.session.commit()
 
@@ -170,7 +170,7 @@ def get_entry_pdfs(entry_id):
     entry = JournalEntry.query.get(entry_id)
     if not entry:
         return jsonify({"error": "Journal entry not found"}), 404
-    pdfs = PDF.query.filter_by(journal=entry.id).all()
+    pdfs = PDF.query.filter_by(journal_id=entry.id).all()
     return jsonify({
         "pdfs": [
             {"id": pdf.id, "filename": pdf.filename, "file_path": pdf.file_path}
