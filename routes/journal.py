@@ -16,19 +16,26 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @journal_bp.route('/', methods=['GET'])
 def get_journal_entries():
-    entries = JournalEntry.query.order_by(JournalEntry.date.desc()).all()
-    data = [{
-        'id': entry.id,
-        'date': entry.date.strftime('%Y-%m-%d') if entry.date else None,
-        'location': entry.location,
-        'signer_name': entry.signer_name,
-        'signer_address': entry.signer_address,
-        'signer_phone': entry.signer_phone,
-        'document_type': entry.document_type,
-        'id_verification': entry.id_verification,
-        'notes': entry.notes
-    } for entry in entries]
-    return jsonify({'entries': data})
+    entries = JournalEntry.query.all()
+    result = []
+    for entry in entries:
+        result.append({
+            'id': entry.id,
+            'date': entry.date.strftime("%Y-%m-%d"),
+            'location': entry.location,
+            'document_type': entry.document_type,
+            'id_verification': entry.id_verification,
+            'notes': entry.notes,
+            'signers': [
+                {
+                    'name': signer.name,
+                    'address': signer.address,
+                    'phone': signer.phone
+                }
+                for signer in entry.signers
+            ]
+        })
+    return jsonify(result)
 
 @journal_bp.route('/new', methods=['POST'])
 def new_entry():
@@ -67,12 +74,17 @@ def get_entry(entry_id):
             'id': entry.id,
             'date': entry.date.strftime('%Y-%m-%d') if entry.date else None,
             'location': entry.location,
-            'signer_name': entry.signer_name,
-            'signer_address': entry.signer_address,
-            'signer_phone': entry.signer_phone,
             'document_type': entry.document_type,
             'id_verification': entry.id_verification,
-            'notes': entry.notes
+            'notes': entry.notes,
+            'signers': [
+                {
+                    'name': signer.name,
+                    'address': signer.address,
+                    'phone': signer.phone
+                }
+                for signer in entry.signers
+            ]
         })
     else:
         return jsonify(error="Not found"), 404
