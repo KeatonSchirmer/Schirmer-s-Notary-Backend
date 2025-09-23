@@ -342,7 +342,7 @@ def sync_google_to_local():
                     existing = Booking.query.filter_by(date=date, time=start_dt.time(), service=summary).first()
                     if not existing:
                         booking = Booking(
-                            client_id=admin_id,
+                            client_id=admin_client_id,
                             service=summary,
                             date=date,
                             time=start_dt.time(),
