@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from database.db import db
-from models.accounts import Admin, SchirmersNotary
+from models.accounts import Admin, SchirmersNotary, Client
 from models.bookings import Booking
 from datetime import datetime, timedelta
 import os
@@ -287,7 +287,16 @@ def sync_google_to_local():
         service = get_calendar_service()
         print("Successfully connected to Google Calendar API.")
         time_min = (datetime.utcnow() - timedelta(days=30)).isoformat() + 'Z'
-        admin = Admin.query.first()  # Get your admin user
+        admin = Admin.query.first()
+        if admin:
+            client = Client.query.filter_by(email=admin.email).first()
+            if not client:
+                client = Client(name=admin.name, email=admin.email)
+                db.session.add(client)
+                db.session.commit()
+            admin_client_id = client.id
+        else:
+            admin_client_id = None
         admin_id = admin.id if admin else None
 
         events_result = service.events().list(
@@ -317,7 +326,7 @@ def sync_google_to_local():
                         existing = Booking.query.filter_by(date=current_date, service=summary).first()
                         if not existing:
                             booking = Booking(
-                                client_id=admin_id,
+                                client_id=admin_client_id,
                                 service=summary,
                                 date=current_date,
                                 time=datetime.min.time(),
