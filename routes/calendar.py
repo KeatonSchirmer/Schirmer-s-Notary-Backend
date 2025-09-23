@@ -228,8 +228,14 @@ def get_available_slots():
     accepted_bookings = Booking.query.filter_by(status="accepted", date=datetime.strptime(date_str, "%Y-%m-%d")).all()
     for b in accepted_bookings:
         start_dt = datetime.combine(b.date, b.time)
-        end_dt = start_dt + timedelta(minutes=30)
-        busy_times.append((start_dt, end_dt))
+        if b.time == datetime.min.time():
+            busy_times.append((
+                datetime.combine(b.date, datetime.min.time()),
+                datetime.combine(b.date, datetime.max.time())
+            ))
+        else:
+            end_dt = start_dt + timedelta(minutes=30)
+            busy_times.append((start_dt, end_dt))
 
     busy_times += get_google_busy_times(date_str)
 
@@ -272,14 +278,19 @@ def sync_all_local_to_google():
         synced.append(b.id)
     return jsonify({"message": f"Synced {len(synced)} bookings to Google Calendar.", "synced_ids": synced})
 
-@calendar_bp.route('/google-sync-to-local', methods=['GET','POST'])
+from datetime import datetime, timedelta
+
+@calendar_bp.route('/google-sync-to-local', methods=['GET', 'POST'])
 def sync_google_to_local():
     service = get_calendar_service()
     now = datetime.utcnow().isoformat() + 'Z'
     events_result = service.events().list(
-        calendarId='primary', timeMin=now,
-        maxResults=50, singleEvents=True,
-        orderBy='startTime').execute()
+        calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
+        timeMin=now,
+        maxResults=50,
+        singleEvents=True,
+        orderBy='startTime'
+    ).execute()
     events = events_result.get('items', [])
 
     synced = []
@@ -301,7 +312,7 @@ def sync_google_to_local():
                         booking = Booking(
                             service=summary,
                             date=current_date,
-                            time=None,
+                            time=datetime.min.time(),
                             notes=notes,
                             status="accepted"
                         )
@@ -311,13 +322,12 @@ def sync_google_to_local():
             else:
                 start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
                 date = start_dt.date()
-                time = start_dt.time()
-                existing = Booking.query.filter_by(date=date, time=time, service=summary).first()
+                existing = Booking.query.filter_by(date=date, time=start_dt.time(), service=summary).first()
                 if not existing:
                     booking = Booking(
                         service=summary,
                         date=date,
-                        time=time,
+                        time=start_dt.time(),
                         notes=notes,
                         status="accepted"
                     )
@@ -325,4 +335,3 @@ def sync_google_to_local():
                     synced.append(summary)
     db.session.commit()
     return jsonify({"message": f"Synced {len(synced)} Google events to local calendar.", "synced_events": synced})
-

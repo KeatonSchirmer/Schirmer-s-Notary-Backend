@@ -15,11 +15,10 @@ from routes.calendar import sync_google_to_local
 
 def start_scheduler(app):
     scheduler = BackgroundScheduler()
-    scheduler.add_job(
-        func=lambda: app.app_context().push() or sync_google_to_local(),
-        trigger="interval",
-        minutes=1
-    )
+    def job():
+        with app.app_context():
+            sync_google_to_local()
+    scheduler.add_job(job, trigger="interval", minutes=1)
     scheduler.start()
 
 
