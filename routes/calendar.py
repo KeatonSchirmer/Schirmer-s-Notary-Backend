@@ -287,6 +287,9 @@ def sync_google_to_local():
         service = get_calendar_service()
         print("Successfully connected to Google Calendar API.")
         time_min = (datetime.utcnow() - timedelta(days=30)).isoformat() + 'Z'
+        admin = Admin.query.first()  # Get your admin user
+        admin_id = admin.id if admin else None
+
         events_result = service.events().list(
             calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
             timeMin=time_min,
@@ -314,6 +317,7 @@ def sync_google_to_local():
                         existing = Booking.query.filter_by(date=current_date, service=summary).first()
                         if not existing:
                             booking = Booking(
+                                client_id=admin_id,
                                 service=summary,
                                 date=current_date,
                                 time=datetime.min.time(),
@@ -329,6 +333,7 @@ def sync_google_to_local():
                     existing = Booking.query.filter_by(date=date, time=start_dt.time(), service=summary).first()
                     if not existing:
                         booking = Booking(
+                            client_id=admin_id,
                             service=summary,
                             date=date,
                             time=start_dt.time(),
