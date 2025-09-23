@@ -162,6 +162,36 @@ def get_company_availability():
         "available_days_json": company.available_days_json or "{}"
     })
 
+def get_google_busy_times(date_str):
+    """
+    Returns a list of (start_datetime, end_datetime) tuples for busy times from Google Calendar for the given date.
+    """
+    service = get_calendar_service()
+    date = datetime.strptime(date_str, "%Y-%m-%d")
+    time_min = date.strftime("%Y-%m-%dT00:00:00Z")
+    time_max = (date + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00Z")
+    events_result = service.events().list(
+        calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
+        timeMin=time_min,
+        timeMax=time_max,
+        singleEvents=True,
+        orderBy='startTime'
+    ).execute()
+    busy_times = []
+    for event in events_result.get('items', []):
+        start = event['start'].get('dateTime') or event['start'].get('date')
+        end = event['end'].get('dateTime') or event['end'].get('date')
+        if start and end:
+            if 'T' in start:
+                start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
+                end_dt = datetime.strptime(end[:16], "%Y-%m-%dT%H:%M")
+                busy_times.append((start_dt, end_dt))
+            else:
+                start_dt = datetime.strptime(start, "%Y-%m-%d")
+                end_dt = datetime.strptime(end, "%Y-%m-%d")
+                busy_times.append((start_dt, end_dt))
+    return busy_times
+
 @calendar_bp.route('/slots', methods=['GET'])
 def get_available_slots():
     date_str = request.args.get("date")
@@ -206,44 +236,13 @@ def get_available_slots():
             end_dt = start_dt + timedelta(minutes=30)
             busy_times.append((start_dt, end_dt))
 
-        busy_times += get_google_busy_times(date_str)
-    
-        def is_free(slot_start, slot_end):
-            for busy_start, busy_end in busy_times:
-                if not (slot_end <= busy_start or slot_start >= busy_end):
-                    return False
-            return True
-    
-    def get_google_busy_times(date_str):
-        """
-        Returns a list of (start_datetime, end_datetime) tuples for busy times from Google Calendar for the given date.
-        """
-        service = get_calendar_service()
-        date = datetime.strptime(date_str, "%Y-%m-%d")
-        time_min = date.strftime("%Y-%m-%dT00:00:00Z")
-        time_max = (date + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00Z")
-        events_result = service.events().list(
-            calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
-            timeMin=time_min,
-            timeMax=time_max,
-            singleEvents=True,
-            orderBy='startTime'
-        ).execute()
-        busy_times = []
-        for event in events_result.get('items', []):
-            start = event['start'].get('dateTime') or event['start'].get('date')
-            end = event['end'].get('dateTime') or event['end'].get('date')
-            if start and end:
-                if 'T' in start:
-                    start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
-                    end_dt = datetime.strptime(end[:16], "%Y-%m-%dT%H:%M")
-                    busy_times.append((start_dt, end_dt))
-                else:
-                    # All-day event, block the whole day
-                    start_dt = datetime.strptime(start, "%Y-%m-%d")
-                    end_dt = datetime.strptime(end, "%Y-%m-%d")
-                    busy_times.append((start_dt, end_dt))
-        return busy_times
+    busy_times += get_google_busy_times(date_str)
+
+    def is_free(slot_start, slot_end):
+        for busy_start, busy_end in busy_times:
+            if not (slot_end <= busy_start or slot_start >= busy_end):
+                return False
+        return True
 
     available_slots = [
         {
