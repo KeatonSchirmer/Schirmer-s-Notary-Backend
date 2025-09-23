@@ -9,12 +9,23 @@ from routes.auth import auth_bp
 from routes.mileage import mileage_bp
 from routes.finances import finances_bp
 from database.db import db
-from werkzeug.security import generate_password_hash
 import logging
-from utils.scheduler import start_scheduler
+from apscheduler.schedulers.background import BackgroundScheduler
+from routes.calendar import sync_google_to_local
+
+def start_scheduler(app):
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        func=lambda: app.app_context().push() or sync_google_to_local(),
+        trigger="interval",
+        minutes=1
+    )
+    scheduler.start()
 
 
 app = Flask(__name__)
+
+start_scheduler(app)
 
 allowed_origins = [
     'https://schirmer-s-notary-admin-site.onrender.com',
@@ -50,6 +61,8 @@ def get_session():
         "user_type": session.get("user_type"),
         "username": session.get("username")
     })
+
+
 
 migrate = Migrate(app, db)
 

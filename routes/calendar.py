@@ -35,12 +35,22 @@ def get_google_busy_times(date_str):
     events = events_result.get('items', [])
     busy_times = []
     for event in events:
-        start = event['start'].get('dateTime')
-        end = event['end'].get('dateTime')
+        start = event['start'].get('dateTime') or event['start'].get('date')
+        end = event['end'].get('dateTime') or event['end'].get('date')
         if start and end:
-            start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
-            end_dt = datetime.strptime(end[:16], "%Y-%m-%dT%H:%M")
-            busy_times.append((start_dt, end_dt))
+            if 'T' not in start:
+                start_dt = datetime.strptime(start, "%Y-%m-%d").date()
+                end_dt = datetime.strptime(end, "%Y-%m-%d").date()
+                end_dt = end_dt - timedelta(days=1)
+                if start_dt <= date_obj.date() <= end_dt:
+                    busy_times.append((
+                        datetime.combine(date_obj, datetime.min.time()),
+                        datetime.combine(date_obj, datetime.max.time())
+                    ))
+            else:
+                start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
+                end_dt = datetime.strptime(end[:16], "%Y-%m-%dT%H:%M")
+                busy_times.append((start_dt, end_dt))
     return busy_times
 
 def get_default_user():
@@ -188,6 +198,8 @@ def get_available_slots():
     date_str = request.args.get("date")
     if not date_str:
         return jsonify({"error": "Missing date"}), 400
+    
+    sync_google_to_local()
 
     company = SchirmersNotary.query.first()
     if not company or not company.available_days_json:
@@ -213,14 +225,12 @@ def get_available_slots():
         current += slot_length
 
     busy_times = []
-    # Local accepted bookings
     accepted_bookings = Booking.query.filter_by(status="accepted", date=datetime.strptime(date_str, "%Y-%m-%d")).all()
     for b in accepted_bookings:
         start_dt = datetime.combine(b.date, b.time)
         end_dt = start_dt + timedelta(minutes=30)
         busy_times.append((start_dt, end_dt))
 
-    # Add Google Calendar busy times
     busy_times += get_google_busy_times(date_str)
 
     def is_free(slot_start, slot_end):
@@ -275,28 +285,44 @@ def sync_google_to_local():
     synced = []
     for event in events:
         summary = event.get('summary', 'No Title')
-        start = event['start'].get('dateTime')
-        end = event['end'].get('dateTime')
         notes = event.get('description', '')
-        if start:
-            start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
-            date = start_dt.date()
-            time = start_dt.time()
-        else:
-            continue
+        start = event['start'].get('dateTime') or event['start'].get('date')
+        end = event['end'].get('dateTime') or event['end'].get('date')
 
-        existing = Booking.query.filter_by(date=date, time=time, service=summary).first()
-        if not existing:
-            booking = Booking(
-                service=summary,
-                date=date,
-                time=time,
-                notes=notes,
-                status="accepted"
-            )
-            db.session.add(booking)
-            synced.append(summary)
+        if start and end:
+            if 'T' not in start:
+                start_dt = datetime.strptime(start, "%Y-%m-%d").date()
+                end_dt = datetime.strptime(end, "%Y-%m-%d").date()
+                end_dt = end_dt - timedelta(days=1)
+                current_date = start_dt
+                while current_date <= end_dt:
+                    existing = Booking.query.filter_by(date=current_date, service=summary).first()
+                    if not existing:
+                        booking = Booking(
+                            service=summary,
+                            date=current_date,
+                            time=None,
+                            notes=notes,
+                            status="accepted"
+                        )
+                        db.session.add(booking)
+                        synced.append(f"{summary} ({current_date})")
+                    current_date += timedelta(days=1)
+            else:
+                start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
+                date = start_dt.date()
+                time = start_dt.time()
+                existing = Booking.query.filter_by(date=date, time=time, service=summary).first()
+                if not existing:
+                    booking = Booking(
+                        service=summary,
+                        date=date,
+                        time=time,
+                        notes=notes,
+                        status="accepted"
+                    )
+                    db.session.add(booking)
+                    synced.append(summary)
     db.session.commit()
     return jsonify({"message": f"Synced {len(synced)} Google events to local calendar.", "synced_events": synced})
-
 
