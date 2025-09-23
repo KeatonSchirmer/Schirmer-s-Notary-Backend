@@ -286,10 +286,10 @@ def sync_google_to_local():
     try:
         service = get_calendar_service()
         print("Successfully connected to Google Calendar API.")
-        now = datetime.utcnow().isoformat() + 'Z'
+        time_min = (datetime.utcnow() - timedelta(days=30)).isoformat() + 'Z'
         events_result = service.events().list(
             calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
-            timeMin=now,
+            timeMin=time_min,
             maxResults=50,
             singleEvents=True,
             orderBy='startTime'
@@ -357,10 +357,10 @@ def get_all_events():
     } for b in local_events]
 
     service = get_calendar_service()
-    now = datetime.utcnow().isoformat() + 'Z'
+    time_min = (datetime.utcnow() - timedelta(days=30)).isoformat() + 'Z'
     events_result = service.events().list(
         calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
-        timeMin=now,
+        timeMin=time_min,
         maxResults=50,
         singleEvents=True,
         orderBy='startTime'
