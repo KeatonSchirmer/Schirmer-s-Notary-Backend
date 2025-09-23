@@ -15,46 +15,12 @@ SERVICE_ACCOUNT_FILE = os.path.join(
 )
 
 def get_calendar_service():
-    print("Connecting to Google Calendar...")  # Console log
+    print("Connecting to Google Calendar...")
     creds = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     service = build('calendar', 'v3', credentials=creds)
-    print("Google Calendar service created.")  # Console log
+    print("Google Calendar service created.")
     return service
-
-@calendar_bp.route('/google-sync-to-local', methods=['GET', 'POST'])
-def sync_google_to_local():
-    print("Starting Google Calendar sync...")  # Console log
-    service = get_calendar_service()
-    now = datetime.utcnow().isoformat() + 'Z'
-    events_result = service.events().list(
-        calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
-        timeMin=now,
-        maxResults=50,
-        singleEvents=True,
-        orderBy='startTime'
-    ).execute()
-    events = events_result.get('items', [])
-    print(f"Pulled {len(events)} events from Google Calendar.")
-    busy_times = []
-    for event in events:
-        start = event['start'].get('dateTime') or event['start'].get('date')
-        end = event['end'].get('dateTime') or event['end'].get('date')
-        if start and end:
-            if 'T' not in start:
-                start_dt = datetime.strptime(start, "%Y-%m-%d").date()
-                end_dt = datetime.strptime(end, "%Y-%m-%d").date()
-                end_dt = end_dt - timedelta(days=1)
-                if start_dt <= date_obj.date() <= end_dt:
-                    busy_times.append((
-                        datetime.combine(date_obj, datetime.min.time()),
-                        datetime.combine(date_obj, datetime.max.time())
-                    ))
-            else:
-                start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
-                end_dt = datetime.strptime(end[:16], "%Y-%m-%dT%H:%M")
-                busy_times.append((start_dt, end_dt))
-    return busy_times
 
 def get_default_user():
     return Admin.query.first()
@@ -240,13 +206,44 @@ def get_available_slots():
             end_dt = start_dt + timedelta(minutes=30)
             busy_times.append((start_dt, end_dt))
 
-    busy_times += get_google_busy_times(date_str)
-
-    def is_free(slot_start, slot_end):
-        for busy_start, busy_end in busy_times:
-            if not (slot_end <= busy_start or slot_start >= busy_end):
-                return False
-        return True
+        busy_times += get_google_busy_times(date_str)
+    
+        def is_free(slot_start, slot_end):
+            for busy_start, busy_end in busy_times:
+                if not (slot_end <= busy_start or slot_start >= busy_end):
+                    return False
+            return True
+    
+    def get_google_busy_times(date_str):
+        """
+        Returns a list of (start_datetime, end_datetime) tuples for busy times from Google Calendar for the given date.
+        """
+        service = get_calendar_service()
+        date = datetime.strptime(date_str, "%Y-%m-%d")
+        time_min = date.strftime("%Y-%m-%dT00:00:00Z")
+        time_max = (date + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00Z")
+        events_result = service.events().list(
+            calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
+            timeMin=time_min,
+            timeMax=time_max,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        busy_times = []
+        for event in events_result.get('items', []):
+            start = event['start'].get('dateTime') or event['start'].get('date')
+            end = event['end'].get('dateTime') or event['end'].get('date')
+            if start and end:
+                if 'T' in start:
+                    start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
+                    end_dt = datetime.strptime(end[:16], "%Y-%m-%dT%H:%M")
+                    busy_times.append((start_dt, end_dt))
+                else:
+                    # All-day event, block the whole day
+                    start_dt = datetime.strptime(start, "%Y-%m-%d")
+                    end_dt = datetime.strptime(end, "%Y-%m-%d")
+                    busy_times.append((start_dt, end_dt))
+        return busy_times
 
     available_slots = [
         {
@@ -285,60 +282,68 @@ from datetime import datetime, timedelta
 
 @calendar_bp.route('/google-sync-to-local', methods=['GET', 'POST'])
 def sync_google_to_local():
-    service = get_calendar_service()
-    now = datetime.utcnow().isoformat() + 'Z'
-    events_result = service.events().list(
-        calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
-        timeMin=now,
-        maxResults=50,
-        singleEvents=True,
-        orderBy='startTime'
-    ).execute()
-    events = events_result.get('items', [])
+    print("Starting Google Calendar sync...")
+    try:
+        service = get_calendar_service()
+        print("Successfully connected to Google Calendar API.")
+        now = datetime.utcnow().isoformat() + 'Z'
+        events_result = service.events().list(
+            calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
+            timeMin=now,
+            maxResults=50,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        events = events_result.get('items', [])
+        print(f"Pulled {len(events)} events from Google Calendar.")
 
-    synced = []
-    for event in events:
-        summary = event.get('summary', 'No Title')
-        notes = event.get('description', '')
-        start = event['start'].get('dateTime') or event['start'].get('date')
-        end = event['end'].get('dateTime') or event['end'].get('date')
+        synced = []
+        for event in events:
+            summary = event.get('summary', 'No Title')
+            notes = event.get('description', '')
+            start = event['start'].get('dateTime') or event['start'].get('date')
+            end = event['end'].get('dateTime') or event['end'].get('date')
 
-        if start and end:
-            if 'T' not in start:
-                start_dt = datetime.strptime(start, "%Y-%m-%d").date()
-                end_dt = datetime.strptime(end, "%Y-%m-%d").date()
-                end_dt = end_dt - timedelta(days=1)
-                current_date = start_dt
-                while current_date <= end_dt:
-                    existing = Booking.query.filter_by(date=current_date, service=summary).first()
+            if start and end:
+                if 'T' not in start:
+                    start_dt = datetime.strptime(start, "%Y-%m-%d").date()
+                    end_dt = datetime.strptime(end, "%Y-%m-%d").date()
+                    end_dt = end_dt - timedelta(days=1)
+                    current_date = start_dt
+                    while current_date <= end_dt:
+                        existing = Booking.query.filter_by(date=current_date, service=summary).first()
+                        if not existing:
+                            booking = Booking(
+                                service=summary,
+                                date=current_date,
+                                time=datetime.min.time(),
+                                notes=notes,
+                                status="accepted"
+                            )
+                            db.session.add(booking)
+                            synced.append(f"{summary} ({current_date})")
+                        current_date += timedelta(days=1)
+                else:
+                    start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
+                    date = start_dt.date()
+                    existing = Booking.query.filter_by(date=date, time=start_dt.time(), service=summary).first()
                     if not existing:
                         booking = Booking(
                             service=summary,
-                            date=current_date,
-                            time=datetime.min.time(),
+                            date=date,
+                            time=start_dt.time(),
                             notes=notes,
                             status="accepted"
                         )
                         db.session.add(booking)
-                        synced.append(f"{summary} ({current_date})")
-                    current_date += timedelta(days=1)
-            else:
-                start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
-                date = start_dt.date()
-                existing = Booking.query.filter_by(date=date, time=start_dt.time(), service=summary).first()
-                if not existing:
-                    booking = Booking(
-                        service=summary,
-                        date=date,
-                        time=start_dt.time(),
-                        notes=notes,
-                        status="accepted"
-                    )
-                    db.session.add(booking)
-                    synced.append(summary)
-    db.session.commit()
-    return jsonify({"message": f"Synced {len(synced)} Google events to local calendar.", "synced_events": synced})
-
+                        synced.append(summary)
+        db.session.commit()
+        print(f"Synced {len(synced)} events to local calendar: {synced}")
+        return jsonify({"message": f"Synced {len(synced)} Google events to local calendar.", "synced_events": synced})
+    except Exception as e:
+        print(f"Error syncing Google Calendar: {e}")
+        return jsonify({"error": str(e)}), 500
+    
 @calendar_bp.route('/all', methods=['GET'])
 def get_all_events():
     local_events = Booking.query.filter_by(status="accepted").all()
