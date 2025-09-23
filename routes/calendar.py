@@ -15,24 +15,27 @@ SERVICE_ACCOUNT_FILE = os.path.join(
 )
 
 def get_calendar_service():
+    print("Connecting to Google Calendar...")  # Console log
     creds = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     service = build('calendar', 'v3', credentials=creds)
+    print("Google Calendar service created.")  # Console log
     return service
 
-def get_google_busy_times(date_str):
+@calendar_bp.route('/google-sync-to-local', methods=['GET', 'POST'])
+def sync_google_to_local():
+    print("Starting Google Calendar sync...")  # Console log
     service = get_calendar_service()
-    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-    start_of_day = date_obj.strftime("%Y-%m-%dT00:00:00")
-    end_of_day = date_obj.strftime("%Y-%m-%dT23:59:59")
+    now = datetime.utcnow().isoformat() + 'Z'
     events_result = service.events().list(
         calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
-        timeMin=start_of_day + '-06:00',  # adjust timezone as needed
-        timeMax=end_of_day + '-06:00',
+        timeMin=now,
+        maxResults=50,
         singleEvents=True,
         orderBy='startTime'
     ).execute()
     events = events_result.get('items', [])
+    print(f"Pulled {len(events)} events from Google Calendar.")
     busy_times = []
     for event in events:
         start = event['start'].get('dateTime') or event['start'].get('date')
