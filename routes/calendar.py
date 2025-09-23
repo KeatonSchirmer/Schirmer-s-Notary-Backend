@@ -335,3 +335,61 @@ def sync_google_to_local():
                     synced.append(summary)
     db.session.commit()
     return jsonify({"message": f"Synced {len(synced)} Google events to local calendar.", "synced_events": synced})
+
+@calendar_bp.route('/all', methods=['GET'])
+def get_all_events():
+    local_events = Booking.query.filter_by(status="accepted").all()
+    local = [{
+        "id": b.id,
+        "name": b.service,
+        "start_date": f"{b.date.strftime('%Y-%m-%d')}T{b.time.strftime('%H:%M')}" if b.time else b.date.strftime('%Y-%m-%d'),
+        "location": b.location,
+        "notes": b.notes,
+        "source": "local"
+    } for b in local_events]
+
+    service = get_calendar_service()
+    now = datetime.utcnow().isoformat() + 'Z'
+    events_result = service.events().list(
+        calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
+        timeMin=now,
+        maxResults=50,
+        singleEvents=True,
+        orderBy='startTime'
+    ).execute()
+    google_events = []
+    for event in events_result.get('items', []):
+        summary = event.get('summary', 'No Title')
+        notes = event.get('description', '')
+        location = event.get('location', '')
+        start = event['start'].get('dateTime') or event['start'].get('date')
+        end = event['end'].get('dateTime') or event['end'].get('date')
+        if start and end:
+            if 'T' not in start:
+                start_dt = datetime.strptime(start, "%Y-%m-%d").date()
+                end_dt = datetime.strptime(end, "%Y-%m-%d").date() - timedelta(days=1)
+                current_date = start_dt
+                while current_date <= end_dt:
+                    google_events.append({
+                        "id": event['id'] + "-" + current_date.strftime("%Y-%m-%d"),
+                        "name": summary,
+                        "start_date": current_date.strftime("%Y-%m-%d"),
+                        "location": location,
+                        "notes": notes,
+                        "source": "google"
+                    })
+                    current_date += timedelta(days=1)
+            else:
+                start_dt = datetime.strptime(start[:16], "%Y-%m-%dT%H:%M")
+                google_events.append({
+                    "id": event['id'],
+                    "name": summary,
+                    "start_date": start_dt.strftime("%Y-%m-%dT%H:%M"),
+                    "location": location,
+                    "notes": notes,
+                    "source": "google"
+                })
+
+    all_events = local + google_events
+    return jsonify({"events": all_events})
+
