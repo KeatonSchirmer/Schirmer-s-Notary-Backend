@@ -15,6 +15,7 @@ class Admin(db.Model):
     two_factor_code = db.Column(db.String(12))
     two_factor_code_created = db.Column(db.DateTime)
     notification_enabled = db.Column(db.Boolean, default=True)
+    push_token = db.Column(db.String(255))
 
     def __repr__(self):
         return f"<Admin {self.email}>"
