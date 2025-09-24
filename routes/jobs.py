@@ -134,13 +134,24 @@ def request_booking():
     db.session.commit()
     send_confirmation_email(email, name, service, date, time)
 
-    # --- Send push notification if client has a push token ---
+    # --- Send push notification to client ---
     if client and getattr(client, "push_token", None):
         send_push_notification(
             client.push_token,
             "Booking Submitted",
             f"Your booking for {service} on {date} at {time} was submitted."
         )
+
+    # --- Send push notification to admin(s) ---
+    from models.accounts import Admin
+    admins = Admin.query.all()
+    for admin in admins:
+        if admin.push_token:
+            send_push_notification(
+                admin.push_token,
+                "New Booking Request",
+                f"{name} submitted a booking for {service} on {date} at {time}."
+            )
 
     return jsonify({"message": "Booking request submitted successfully", "id": booking.id}), 201
 
