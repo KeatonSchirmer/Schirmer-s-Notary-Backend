@@ -82,6 +82,23 @@ def save_push_token():
     data = request.get_json()
     token = data.get('token')
     user_id = session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id or not token:
+        return {'success': False, 'error': 'Missing user or token'}, 400
+
+    # Save to the correct user model
+    from models.accounts import Admin
+    from models.accounts import Client
+    user = None
+    if user_type == 'admin':
+        user = Admin.query.get(user_id)
+    elif user_type == 'client':
+        user = Client.query.get(user_id)
+    if not user:
+        return {'success': False, 'error': 'User not found'}, 404
+
+    user.push_token = token
+    db.session.commit()
     return {'success': True}
 
 migrate = Migrate(app, db)
