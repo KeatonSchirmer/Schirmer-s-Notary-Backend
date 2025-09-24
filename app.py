@@ -1,6 +1,7 @@
 from flask import Flask, request, session, jsonify
 from flask_migrate import Migrate
 from flask_cors import CORS
+import requests
 from routes.jobs import jobs_bp
 from routes.journal import journal_bp
 from routes.clients import clients_bp
@@ -21,6 +22,21 @@ def start_scheduler(app):
     scheduler.add_job(job, trigger="interval", minutes=1)
     scheduler.start()
 
+
+
+def send_push_notification(token, title, body):
+    message = {
+        'to': token,
+        'sound': 'default',
+        'title': title,
+        'body': body,
+    }
+    response = requests.post(
+        'https://exp.host/--/api/v2/push/send',
+        json=message,
+        headers={'Content-Type': 'application/json'}
+    )
+    return response.json()
 
 app = Flask(__name__)
 
@@ -61,7 +77,12 @@ def get_session():
         "username": session.get("username")
     })
 
-
+@app.route('/api/save-push-token', methods=['POST'])
+def save_push_token():
+    data = request.get_json()
+    token = data.get('token')
+    user_id = session.get('user_id')
+    return {'success': True}
 
 migrate = Migrate(app, db)
 

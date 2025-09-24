@@ -104,6 +104,9 @@ def update_profile():
             user.license_number = data.get('license_number', user.license_number)
             user.license_expiration = data.get('license_expiration', user.license_expiration)
             user.notification_enabled = data.get('notification_enabled', user.notification_enabled)
+            # Save push token if provided
+            if 'push_token' in data:
+                user.push_token = data['push_token']
         elif user_type == 'client':
             user = Client.query.get(user_id)
             if not user:
@@ -113,6 +116,9 @@ def update_profile():
             user.address = data.get('address', user.address)
             user.phone = data.get('phone', user.phone)
             user.company = data.get('company', user.company)
+            # Save push token if provided
+            if 'push_token' in data:
+                user.push_token = data['push_token']
         else:
             return jsonify({"message": "Unknown user type"}), 400
 

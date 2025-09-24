@@ -4,6 +4,7 @@ from database.db import db
 import smtplib
 from email.mime.text import MIMEText
 import os
+import requests
 from models.journal import PDF
 from models.accounts import Client
 from models.business import Finance, Mileage
@@ -14,6 +15,26 @@ jobs_bp = Blueprint('jobs', __name__)
 
 PDF_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'database', 'pdfs')
 os.makedirs(PDF_FOLDER, exist_ok=True)
+
+import requests
+
+def send_push_notification(token, title, body):
+    if not token:
+        return
+    message = {
+        'to': token,
+        'sound': 'default',
+        'title': title,
+        'body': body,
+    }
+    try:
+        requests.post(
+            'https://exp.host/--/api/v2/push/send',
+            json=message,
+            headers={'Content-Type': 'application/json'}
+        )
+    except Exception as e:
+        print(f"Failed to send push notification: {e}")
 
 def send_confirmation_email(to_email, name, service, date, time):
     subject = "Booking Confirmation"
@@ -82,6 +103,8 @@ def request_booking():
             db.session.add(client)
             db.session.commit()
         client_id = client.id
+    else:
+        client = Client.query.get(client_id)
 
     service = data.get('service')
     urgency = data.get('urgency', 'normal')
@@ -110,6 +133,15 @@ def request_booking():
     db.session.add(booking)
     db.session.commit()
     send_confirmation_email(email, name, service, date, time)
+
+    # --- Send push notification if client has a push token ---
+    if client and getattr(client, "push_token", None):
+        send_push_notification(
+            client.push_token,
+            "Booking Submitted",
+            f"Your booking for {service} on {date} at {time} was submitted."
+        )
+
     return jsonify({"message": "Booking request submitted successfully", "id": booking.id}), 201
 
 @jobs_bp.route('/<int:booking_id>', methods=['GET'])
