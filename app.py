@@ -86,7 +86,6 @@ def save_push_token():
     if not user_id or not token:
         return {'success': False, 'error': 'Missing user or token'}, 400
 
-    # Save to the correct user model
     from models.accounts import Admin
     from models.accounts import Client
     user = None
