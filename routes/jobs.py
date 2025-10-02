@@ -87,7 +87,9 @@ def get_all_bookings():
             "location": b.location,
             "notes": b.notes,
             "journal_id": b.journal_id,
-            "status": b.status
+            "status": b.status,
+            "rating": b.rating,
+            "feedback": b.feedback
         }
         for b in bookings
     ])
@@ -170,7 +172,9 @@ def get_booking(booking_id):
         "location": booking.location,
         "notes": booking.notes,
         "journal_id": booking.journal_id,
-        "status": booking.status
+        "status": booking.status,
+        "rating": booking.rating,
+        "feedback": booking.feedback
     })
 
 @jobs_bp.route('/<int:booking_id>/accept', methods=['POST'])
@@ -282,10 +286,11 @@ def get_completed_bookings():
         "time": b.time.strftime("%H:%M"),
         "location": b.location,
         "notes": b.notes,
-        "journal_id": b.journal_id
+        "journal_id": b.journal_id,
+        "rating": b.rating,
+        "feedback": b.feedback
     } for b in bookings])
 
-# PDF upload/list/download (unchanged)
 @jobs_bp.route('/pdfs/upload', methods=['POST'])
 def upload_pdf():
     user_id = request.headers.get("X-User-Id")
@@ -317,3 +322,47 @@ def get_pdf(filename):
     if pdf:
         return send_file(pdf.file_path, mimetype='application/pdf')
     return jsonify({"error": "PDF not found"}), 404
+
+@jobs_bp.route('/<int:booking_id>/feedback', methods=['POST'])
+def submit_feedback(booking_id):
+    """
+    Submit feedback for a completed booking
+    Expects: {"rating": 1-5, "feedback": "optional text"}
+    """
+    booking = Booking.query.get_or_404(booking_id)
+    
+    if booking.status != "completed":
+        return jsonify({"error": "Feedback can only be submitted for completed bookings"}), 400
+    
+    data = request.get_json()
+    rating = data.get('rating')
+    feedback = data.get('feedback', '')
+    
+    if not rating or not isinstance(rating, int) or rating < 1 or rating > 5:
+        return jsonify({"error": "Rating must be an integer between 1 and 5"}), 400
+    
+    try:
+        booking.rating = rating
+        booking.feedback = feedback
+        db.session.commit()
+        
+        from models.accounts import Admin
+        admins = Admin.query.all()
+        for admin in admins:
+            if admin.push_token:
+                send_push_notification(
+                    admin.push_token,
+                    "New Feedback Received",
+                    f"New {rating}★ rating for {booking.service} booking"
+                )
+        
+        return jsonify({
+            "message": "Feedback submitted successfully",
+            "booking_id": booking.id,
+            "rating": rating,
+            "feedback": feedback
+        }), 200
+        
+    except Exception as e:
+        print(f"Failed to submit feedback: {e}")
+        return jsonify({"error": "Failed to submit feedback"}), 500

@@ -44,6 +44,7 @@ class Client(db.Model):
     two_factor_code = db.Column(db.String(12))
     two_factor_code_created = db.Column(db.DateTime)
     premium = db.Column(db.Enum("None", "Business", "Premium", "Corporate", "Custom", name="premium_tier"), default="None")
+    push_token = db.Column(db.String(255))
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True, index=True)
     company = db.relationship('Company', back_populates='contact_points')
     bookings = db.relationship('Booking', backref='client', lazy=True)
