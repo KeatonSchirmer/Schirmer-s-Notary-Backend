@@ -5,6 +5,7 @@ from database.db import db
 from models.accounts import Admin, SchirmersNotary, Client
 from models.bookings import Booking
 import os
+import json
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from datetime import datetime, timedelta
@@ -117,7 +118,7 @@ def get_local_busy_times(date_str):
         return []
 
 def generate_available_slots(date_str, busy_times):
-    """Generate available time slots based on SchirmersNotary availability settings"""
+    """Generate available time slots based on SchirmersNotary detailed availability settings"""
     try:
         date = datetime.strptime(date_str, "%Y-%m-%d")
         
@@ -125,14 +126,37 @@ def generate_available_slots(date_str, busy_times):
         if not company:
             return []
         
-        office_start = company.office_start or "09:00"
-        office_end = company.office_end or "17:00"
-        available_days = company.available_days or "0,1,2,3,4" 
-        day_of_week = date.weekday() 
-        available_day_numbers = [int(d.strip()) for d in available_days.split(",") if d.strip()]
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        day_name = day_names[date.weekday()]
         
-        if day_of_week not in available_day_numbers:
-            return [] 
+        if company.available_days_json:
+            try:
+                detailed_availability = json.loads(company.available_days_json)
+                
+                if day_name not in detailed_availability:
+                    return []
+                
+                day_schedule = detailed_availability[day_name]
+                office_start = day_schedule.get("start", "09:00")
+                office_end = day_schedule.get("end", "17:00")
+                
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                print(f"Error parsing available_days_json: {e}, falling back to simple availability")
+                office_start = company.office_start or "09:00"
+                office_end = company.office_end or "17:00"
+                available_days = company.available_days or "0,1,2,3,4"
+                available_day_numbers = [int(d.strip()) for d in available_days.split(",") if d.strip()]
+                
+                if date.weekday() not in available_day_numbers:
+                    return []
+        else:
+            office_start = company.office_start or "09:00"
+            office_end = company.office_end or "17:00"
+            available_days = company.available_days or "0,1,2,3,4"
+            available_day_numbers = [int(d.strip()) for d in available_days.split(",") if d.strip()]
+            
+            if date.weekday() not in available_day_numbers:
+                return []
         
         try:
             start_hour, start_min = map(int, office_start.split(":"))
@@ -317,14 +341,14 @@ def add_event_to_calendar(booking):
 
 @calendar_bp.route('/slots', methods=['GET'])
 def get_available_slots():
-    """Get available slots based on SchirmersNotary availability and local bookings"""
+    """Get available slots based on SchirmersNotary detailed availability and local bookings"""
     try:
         date_str = request.args.get('date')
         if not date_str:
             return jsonify({"error": "Date parameter required"}), 400
         
         try:
-            datetime.strptime(date_str, "%Y-%m-%d")
+            requested_date = datetime.strptime(date_str, "%Y-%m-%d")
         except ValueError:
             return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
         
@@ -338,7 +362,6 @@ def get_available_slots():
             }), 200
         
         busy_times = get_local_busy_times(date_str)
-        
         available_slots = generate_available_slots(date_str, busy_times)
         
         formatted_slots = []
@@ -351,12 +374,27 @@ def get_available_slots():
                 "available": True
             })
         
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        day_name = day_names[requested_date.weekday()]
+        business_hours = "Not configured"
+        
+        if company.available_days_json:
+            try:
+                detailed_availability = json.loads(company.available_days_json)
+                if day_name in detailed_availability:
+                    day_schedule = detailed_availability[day_name]
+                    business_hours = f"{day_schedule.get('start', '09:00')} - {day_schedule.get('end', '17:00')}"
+            except:
+                business_hours = f"{company.office_start or '09:00'} - {company.office_end or '17:00'}"
+        
         return jsonify({
             "date": date_str,
+            "day_name": day_name,
             "slots": formatted_slots,
-            "availability_source": "schirmers_notary_table",
-            "business_hours": f"{company.office_start} - {company.office_end}",
+            "availability_source": "schirmers_notary_detailed_json",
+            "business_hours": business_hours,
             "available_days": company.available_days,
+            "detailed_availability": company.available_days_json,
             "total_slots": len(formatted_slots)
         }), 200
         
@@ -377,13 +415,26 @@ def get_availability_status():
                 "default_setup_needed": True
             }), 200
         
+        detailed_availability = None
+        has_detailed_schedule = False
+        
+        if company.available_days_json:
+            try:
+                detailed_availability = json.loads(company.available_days_json)
+                has_detailed_schedule = True
+            except:
+                detailed_availability = None
+        
         return jsonify({
             "configured": True,
             "office_start": company.office_start,
             "office_end": company.office_end,
             "available_days": company.available_days,
             "available_days_list": company.available_days.split(",") if company.available_days else [],
-            "message": "Availability is configured"
+            "detailed_availability": detailed_availability,
+            "has_detailed_schedule": has_detailed_schedule,
+            "schedule_type": "detailed_json" if has_detailed_schedule else "simple",
+            "message": "Detailed availability schedule is configured" if has_detailed_schedule else "Simple availability is configured"
         }), 200
         
     except Exception as e:
