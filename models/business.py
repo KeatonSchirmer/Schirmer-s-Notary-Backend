@@ -49,7 +49,7 @@ class Billing(db.Model):
     __tablename__ = "billing"
 
     id = db.Column(db.Integer, primary_key=True)
-    client_id = db.Column(db.Integer, db.ForeignKey('clients.id'))
+    client_id = db.Column(db.Integer, db.ForeignKey('client.id'))
     address = db.Column(db.String(200))
     city = db.Column(db.String(100))
     state = db.Column(db.String(100))
@@ -111,7 +111,7 @@ class DirectDeposit(db.Model):
     __tablename__ = "direct_deposits"
 
     id = db.Column(db.Integer, primary_key=True)
-    admin_id = db.Column(db.Integer, db.ForeignKey('admins.id'))
+    admin_id = db.Column(db.Integer, db.ForeignKey('admin.id'))
     bank_name = db.Column(db.String(100))
     account_type = db.Column(Enum("checking", "savings", name="account_type"), nullable=False)
     _account_number = db.Column('account_number', db.Text)  # Encrypted

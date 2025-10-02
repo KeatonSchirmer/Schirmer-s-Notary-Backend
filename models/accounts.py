@@ -47,6 +47,7 @@ class Client(db.Model):
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True, index=True)
     company = db.relationship('Company', back_populates='contact_points')
     bookings = db.relationship('Booking', backref='client', lazy=True)
+    billing = db.relationship('Billing', uselist=False, backref='client')
 
     def __repr__(self):
         return f"<Client {self.email}>"
