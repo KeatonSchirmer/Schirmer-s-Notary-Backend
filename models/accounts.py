@@ -16,6 +16,11 @@ class Admin(db.Model):
     two_factor_code_created = db.Column(db.DateTime)
     notification_enabled = db.Column(db.Boolean, default=True)
     push_token = db.Column(db.String(255))
+    google_access_token = db.Column(db.Text)
+    google_refresh_token = db.Column(db.Text) 
+    google_token_expires = db.Column(db.DateTime)
+    google_calendar_connected = db.Column(db.Boolean, default=False)
+
 
     def __repr__(self):
         return f"<Admin {self.email}>"
@@ -49,6 +54,11 @@ class Client(db.Model):
     company = db.relationship('Company', back_populates='contact_points')
     bookings = db.relationship('Booking', backref='client', lazy=True)
     billing = db.relationship('Billing', uselist=False, backref='client')
+    google_access_token = db.Column(db.Text)
+    google_refresh_token = db.Column(db.Text) 
+    google_token_expires = db.Column(db.DateTime)
+    google_calendar_connected = db.Column(db.Boolean, default=False)
+
 
     def __repr__(self):
         return f"<Client {self.email}>"

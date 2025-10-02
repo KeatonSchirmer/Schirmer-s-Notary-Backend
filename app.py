@@ -23,8 +23,6 @@ def start_scheduler(app):
     scheduler.add_job(job, trigger="interval", minutes=1)
     scheduler.start()
 
-
-
 def send_push_notification(token, title, body):
     message = {
         'to': token,
@@ -43,7 +41,13 @@ app = Flask(__name__)
 
 start_scheduler(app)
 
-CORS(app, supports_credentials=True, resources={r"/*": {}}, allow_headers=["Content-Type", "Authorization", "x-user-id"])
+CORS(app, 
+     supports_credentials=True, 
+     resources={r"/*": {"origins": "*"}}, 
+     allow_headers=["Content-Type", "Authorization", "x-user-id", "X-User-Id"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+)
+
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 

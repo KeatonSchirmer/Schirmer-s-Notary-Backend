@@ -10,8 +10,15 @@ from email.mime.text import MIMEText
 from datetime import timedelta
 import traceback
 import os
+from google_auth_oauthlib.flow import Flow
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 
 auth_bp = Blueprint('auth', __name__, template_folder='frontend/templates')
+
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET') 
+SCOPES = ['https://www.googleapis.com/auth/calendar']
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -429,3 +436,113 @@ def twofa_status():
     verified = session.get('twofa_verified', False)
     return {'twofa_verified': verified}, 200
 
+@auth_bp.route('/google/connect', methods=['GET'])
+def connect_google_calendar():
+    """Initiate Google Calendar OAuth flow"""
+    user_id = session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id or not user_type:
+        return jsonify({"message": "Not logged in"}), 401
+
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        return jsonify({"error": "Google OAuth not configured"}), 500
+
+    try:
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [f"{os.environ.get('API_BASE_URL')}/auth/google/callback"]
+                }
+            },
+            scopes=SCOPES
+        )
+        
+        flow.redirect_uri = f"{os.environ.get('API_BASE_URL')}/auth/google/callback"
+        
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            state=f"{user_id}:{user_type}"
+        )
+        
+        return jsonify({"authorization_url": authorization_url}), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to initiate OAuth: {str(e)}"}), 500
+
+@auth_bp.route('/google/callback', methods=['GET'])
+def google_callback():
+    """Handle Google OAuth callback"""
+    try:
+        state = request.args.get('state')
+        code = request.args.get('code')
+        
+        if not state or not code:
+            return jsonify({"error": "Missing state or code"}), 400
+            
+        user_id, user_type = state.split(':')
+        
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [f"{os.environ.get('API_BASE_URL')}/auth/google/callback"]
+                }
+            },
+            scopes=SCOPES
+        )
+        
+        flow.redirect_uri = f"{os.environ.get('API_BASE_URL')}/auth/google/callback"
+        flow.fetch_token(code=code)
+        
+        credentials = flow.credentials
+        
+        if user_type == 'admin':
+            user = Admin.query.get(user_id)
+        else:
+            user = Client.query.get(user_id)
+            
+        if user:
+            user.google_access_token = credentials.token
+            user.google_refresh_token = credentials.refresh_token
+            user.google_token_expires = credentials.expiry
+            user.google_calendar_connected = True
+            db.session.commit()
+            
+        return jsonify({"message": "Google Calendar connected successfully"}), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"OAuth callback failed: {str(e)}"}), 500
+
+@auth_bp.route('/google/disconnect', methods=['POST'])
+def disconnect_google_calendar():
+    """Disconnect Google Calendar"""
+    user_id = session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id or not user_type:
+        return jsonify({"message": "Not logged in"}), 401
+
+    try:
+        if user_type == 'admin':
+            user = Admin.query.get(user_id)
+        else:
+            user = Client.query.get(user_id)
+            
+        if user:
+            user.google_access_token = None
+            user.google_refresh_token = None
+            user.google_token_expires = None
+            user.google_calendar_connected = False
+            db.session.commit()
+            
+        return jsonify({"message": "Google Calendar disconnected"}), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to disconnect: {str(e)}"}), 500

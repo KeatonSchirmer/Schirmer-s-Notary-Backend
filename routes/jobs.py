@@ -76,23 +76,25 @@ Schirmer's Notary
 @jobs_bp.route('/', methods=['GET'])
 def get_all_bookings():
     bookings = Booking.query.all()
-    return jsonify([
-        {
-            "id": b.id,
-            "client_id": b.client_id,
-            "service": b.service,
-            "urgency": b.urgency,
-            "date": b.date.strftime("%Y-%m-%d") if b.date else None,
-            "time": b.time.strftime("%H:%M") if b.time else None,
-            "location": b.location,
-            "notes": b.notes,
-            "journal_id": b.journal_id,
-            "status": b.status,
-            "rating": b.rating,
-            "feedback": b.feedback
-        }
-        for b in bookings
-    ])
+    return jsonify({
+        "jobs": [
+            {
+                "id": b.id,
+                "client_id": b.client_id,
+                "service": b.service,
+                "urgency": b.urgency,
+                "date": b.date.strftime("%Y-%m-%d") if b.date else None,
+                "time": b.time.strftime("%H:%M") if b.time else None,
+                "location": b.location,
+                "notes": b.notes,
+                "journal_id": b.journal_id,
+                "status": b.status,
+                "rating": b.rating,
+                "feedback": b.feedback
+            }
+            for b in bookings
+        ]
+    })
 
 @jobs_bp.route('/request', methods=['POST'])
 def request_booking():
@@ -366,3 +368,15 @@ def submit_feedback(booking_id):
     except Exception as e:
         print(f"Failed to submit feedback: {e}")
         return jsonify({"error": "Failed to submit feedback"}), 500
+    
+@jobs_bp.route('/create', methods=['POST'])
+def create_booking():
+    """Alternative endpoint for booking creation"""
+    return request_booking()
+
+@jobs_bp.route('/client/request', methods=['POST'])  
+def client_request_booking():
+    """Client-specific booking request endpoint"""
+    return request_booking() 
+
+   
