@@ -117,28 +117,29 @@ def get_local_busy_times(date_str):
         return []
 
 def generate_available_slots(date_str, busy_times):
-    """Generate available time slots for a given date, excluding busy times"""
+    """Generate available time slots based on SchirmersNotary availability settings"""
     try:
         date = datetime.strptime(date_str, "%Y-%m-%d")
         
         company = SchirmersNotary.query.first()
         if not company:
-            office_start = "09:00"
-            office_end = "17:00"
-            available_days = "0,1,2,3,4"
-        else:
-            office_start = company.office_start or "09:00"
-            office_end = company.office_end or "17:00"
-            available_days = company.available_days or "0,1,2,3,4"
+            return []
         
-        day_of_week = date.weekday()
-        available_day_numbers = [int(d) for d in available_days.split(",") if d.strip()]
+        office_start = company.office_start or "09:00"
+        office_end = company.office_end or "17:00"
+        available_days = company.available_days or "0,1,2,3,4" 
+        day_of_week = date.weekday() 
+        available_day_numbers = [int(d.strip()) for d in available_days.split(",") if d.strip()]
         
         if day_of_week not in available_day_numbers:
-            return []  
+            return [] 
         
-        start_hour, start_min = map(int, office_start.split(":"))
-        end_hour, end_min = map(int, office_end.split(":"))
+        try:
+            start_hour, start_min = map(int, office_start.split(":"))
+            end_hour, end_min = map(int, office_end.split(":"))
+        except (ValueError, AttributeError):
+            start_hour, start_min = 9, 0
+            end_hour, end_min = 17, 0
         
         office_start_dt = date.replace(hour=start_hour, minute=start_min)
         office_end_dt = date.replace(hour=end_hour, minute=end_min)
@@ -146,21 +147,32 @@ def generate_available_slots(date_str, busy_times):
         available_slots = []
         current_slot = office_start_dt
         
-        while current_slot + timedelta(minutes=45) <= office_end_dt:
+        while current_slot + timedelta(minutes=30) <= office_end_dt:
             slot_end = current_slot + timedelta(minutes=30)
             
-            # Check if this slot conflicts with any busy time
             is_busy = False
             for busy_start, busy_end in busy_times:
+                if hasattr(busy_start, 'tzinfo') and busy_start.tzinfo:
+                    busy_start = busy_start.replace(tzinfo=None)
+                if hasattr(busy_end, 'tzinfo') and busy_end.tzinfo:
+                    busy_end = busy_end.replace(tzinfo=None)
+                    
                 if (current_slot < busy_end and slot_end > busy_start):
                     is_busy = True
                     break
             
-            if not is_busy:
+            now = datetime.now()
+            is_past = False
+            if date.date() == now.date() and current_slot <= now:
+                is_past = True
+            
+            if not is_busy and not is_past:
                 available_slots.append({
                     "start_time": current_slot.strftime("%H:%M"),
                     "end_time": slot_end.strftime("%H:%M"),
-                    "datetime": current_slot.isoformat()
+                    "datetime": current_slot.isoformat(),
+                    "date": date_str,
+                    "available": True
                 })
             
             current_slot += timedelta(minutes=30)
@@ -170,6 +182,63 @@ def generate_available_slots(date_str, busy_times):
     except Exception as e:
         print(f"Error generating available slots: {e}")
         return []
+
+#! Will be updated later to handle employee availability
+
+#def generate_available_slots(date_str, busy_times):
+#    """Generate available time slots for a given date, excluding busy times"""
+#    try:
+#        date = datetime.strptime(date_str, "%Y-%m-%d")
+#        
+#        company = SchirmersNotary.query.first()
+#        if not company:
+#            office_start = "09:00"
+#            office_end = "17:00"
+#            available_days = "0,1,2,3,4"
+#        else:
+#            office_start = company.office_start or "09:00"
+#            office_end = company.office_end or "17:00"
+#            available_days = company.available_days or "0,1,2,3,4"
+#        
+#        day_of_week = date.weekday()
+#        available_day_numbers = [int(d) for d in available_days.split(",") if d.strip()]
+#        
+#        if day_of_week not in available_day_numbers:
+#            return []  
+#        
+#        start_hour, start_min = map(int, office_start.split(":"))
+#        end_hour, end_min = map(int, office_end.split(":"))
+#        
+#        office_start_dt = date.replace(hour=start_hour, minute=start_min)
+#        office_end_dt = date.replace(hour=end_hour, minute=end_min)
+#        
+#        available_slots = []
+#        current_slot = office_start_dt
+#        
+#        while current_slot + timedelta(minutes=45) <= office_end_dt:
+#            slot_end = current_slot + timedelta(minutes=30)
+#            
+#            # Check if this slot conflicts with any busy time
+#            is_busy = False
+#            for busy_start, busy_end in busy_times:
+#                if (current_slot < busy_end and slot_end > busy_start):
+#                    is_busy = True
+#                    break
+#            
+#            if not is_busy:
+#                available_slots.append({
+#                    "start_time": current_slot.strftime("%H:%M"),
+#                    "end_time": slot_end.strftime("%H:%M"),
+#                    "datetime": current_slot.isoformat()
+#                })
+#            
+#            current_slot += timedelta(minutes=30)
+#        
+#        return available_slots
+#        
+#    except Exception as e:
+#        print(f"Error generating available slots: {e}")
+#        return []
 
 def add_event_to_calendar(booking):
     """Add booking to Google Calendar using service account"""
@@ -201,46 +270,157 @@ def add_event_to_calendar(booking):
     except Exception as e:
         print(f"Failed to add event to calendar: {e}")
 
+#! Will be updated later to handle employee availability
+
+#@calendar_bp.route('/slots', methods=['GET'])
+#def get_available_slots():
+#    """Get available slots based on admin calendar (ID 1) and local bookings"""
+#    try:
+#        date_str = request.args.get('date')
+#        if not date_str:
+#            return jsonify({"error": "Date parameter required"}), 400
+#        
+#        admin = get_admin_calendar_user()
+#        if not admin:
+#            return jsonify({"error": "Admin user (ID 1) not found"}), 404
+#        
+#        busy_times = []
+#        
+#        if hasattr(admin, 'google_calendar_connected') and admin.google_calendar_connected:
+#            busy_times += get_user_busy_times(admin, date_str)
+#        
+#        busy_times += get_local_busy_times(date_str)
+#        
+#        available_slots = generate_available_slots(date_str, busy_times)
+#        
+#        # Format slots to match frontend expectations
+#        formatted_slots = []
+#        for slot in available_slots:
+#            formatted_slots.append({
+#                "date": date_str,
+#                "time": slot["start_time"],
+#                "available": True
+#            })
+#        
+#        return jsonify({
+#            "date": date_str,
+#            "slots": formatted_slots,  # Changed from available_slots
+#            "admin_calendar_connected": getattr(admin, 'google_calendar_connected', False),
+#            "total_slots": len(formatted_slots)
+#        }), 200
+#        
+#    except Exception as e:
+#        print(f"Error getting available slots: {e}")
+#        return jsonify({"error": "Failed to get available slots"}), 500
+
+#! The below is temporary
+
 @calendar_bp.route('/slots', methods=['GET'])
 def get_available_slots():
-    """Get available slots based on admin calendar (ID 1) and local bookings"""
+    """Get available slots based on SchirmersNotary availability and local bookings"""
     try:
         date_str = request.args.get('date')
         if not date_str:
             return jsonify({"error": "Date parameter required"}), 400
         
-        admin = get_admin_calendar_user()
-        if not admin:
-            return jsonify({"error": "Admin user (ID 1) not found"}), 404
+        try:
+            datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
         
-        busy_times = []
+        company = SchirmersNotary.query.first()
+        if not company:
+            return jsonify({
+                "date": date_str,
+                "slots": [],
+                "error": "No availability configured. Please set business hours first.",
+                "total_slots": 0
+            }), 200
         
-        if hasattr(admin, 'google_calendar_connected') and admin.google_calendar_connected:
-            busy_times += get_user_busy_times(admin, date_str)
-        
-        busy_times += get_local_busy_times(date_str)
+        busy_times = get_local_busy_times(date_str)
         
         available_slots = generate_available_slots(date_str, busy_times)
         
-        # Format slots to match frontend expectations
         formatted_slots = []
         for slot in available_slots:
             formatted_slots.append({
                 "date": date_str,
                 "time": slot["start_time"],
+                "end_time": slot["end_time"],
+                "datetime": slot["datetime"],
                 "available": True
             })
         
         return jsonify({
             "date": date_str,
-            "slots": formatted_slots,  # Changed from available_slots
-            "admin_calendar_connected": getattr(admin, 'google_calendar_connected', False),
+            "slots": formatted_slots,
+            "availability_source": "schirmers_notary_table",
+            "business_hours": f"{company.office_start} - {company.office_end}",
+            "available_days": company.available_days,
             "total_slots": len(formatted_slots)
         }), 200
         
     except Exception as e:
         print(f"Error getting available slots: {e}")
-        return jsonify({"error": "Failed to get available slots"}), 500
+        return jsonify({"error": f"Failed to get available slots: {str(e)}"}), 500
+
+@calendar_bp.route('/availability/status', methods=['GET'])
+def get_availability_status():
+    """Check if availability is properly configured"""
+    try:
+        company = SchirmersNotary.query.first()
+        
+        if not company:
+            return jsonify({
+                "configured": False,
+                "message": "No availability settings found. Please configure business hours.",
+                "default_setup_needed": True
+            }), 200
+        
+        return jsonify({
+            "configured": True,
+            "office_start": company.office_start,
+            "office_end": company.office_end,
+            "available_days": company.available_days,
+            "available_days_list": company.available_days.split(",") if company.available_days else [],
+            "message": "Availability is configured"
+        }), 200
+        
+    except Exception as e:
+        print(f"Error checking availability status: {e}")
+        return jsonify({"error": "Failed to check availability status"}), 500
+
+@calendar_bp.route('/availability/quick-setup', methods=['POST'])
+def quick_setup_availability():
+    """Quick setup for default business hours"""
+    try:
+        data = request.get_json() or {}
+        
+        company = SchirmersNotary.query.first()
+        if not company:
+            company = SchirmersNotary()
+        
+        company.office_start = data.get("office_start", "09:00")
+        company.office_end = data.get("office_end", "17:00")
+        company.available_days = data.get("available_days", "0,1,2,3,4") 
+        company.address = data.get("address", company.address or "")
+        
+        db.session.add(company)
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Availability configured successfully",
+            "office_start": company.office_start,
+            "office_end": company.office_end,
+            "available_days": company.available_days,
+            "setup_complete": True
+        }), 200
+        
+    except Exception as e:
+        print(f"Error setting up availability: {e}")
+        return jsonify({"error": "Failed to setup availability"}), 500
+
+#! The above is temporary
 
 @calendar_bp.route('/admin/calendar-status', methods=['GET'])
 def get_admin_calendar_status():

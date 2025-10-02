@@ -207,8 +207,13 @@ def get_direct_deposit_info():
     if user_type == 'admin':
         direct_deposit = DirectDeposit.query.filter_by(admin_id=user_id).first()
     elif user_type == 'client':
-        direct_deposit = DirectDeposit.query.filter_by(client_id=user_id).first()
-    
+        return jsonify({
+            "user_type": "client",
+            "payment_method": "billing", 
+            "message": "Client payments are processed via billing. Use /auth/billing/info endpoint for payment details.",
+            "redirect_to": "/auth/billing/info"
+        }), 200
+        
     if not direct_deposit:
         return jsonify({"message": "No direct deposit info found"}), 404
     
@@ -230,9 +235,10 @@ def update_direct_deposit_info():
         if not direct_deposit:
             direct_deposit = DirectDeposit(admin_id=user_id)
     elif user_type == 'client':
-        direct_deposit = DirectDeposit.query.filter_by(client_id=user_id).first()
-        if not direct_deposit:
-            direct_deposit = DirectDeposit(client_id=user_id)
+        return jsonify({
+            "error": "Clients use billing, not direct deposit. Use /auth/billing/update endpoint.",
+            "redirect_to": "/auth/billing/update"
+        }), 400
     
     try:
         direct_deposit.bank_name = data.get('bank_name', direct_deposit.bank_name)
@@ -262,7 +268,10 @@ def delete_direct_deposit_info():
     if user_type == 'admin':
         direct_deposit = DirectDeposit.query.filter_by(admin_id=user_id).first()
     elif user_type == 'client':
-        direct_deposit = DirectDeposit.query.filter_by(client_id=user_id).first()
+        return jsonify({
+            "error": "Clients use billing, not direct deposit. Use /auth/billing/delete endpoint.",
+            "redirect_to": "/auth/billing/delete"
+        }), 400
     
     if not direct_deposit:
         return jsonify({"message": "No direct deposit info found"}), 404
@@ -285,7 +294,12 @@ def get_billing_info():
     from models.business import Billing
     billing = None
     if user_type == 'admin':
-        billing = Billing.query.filter_by(admin_id=user_id).first()
+        return jsonify({
+            "user_type": "admin",
+            "payment_method": "direct_deposit", 
+            "message": "Admin payments are processed via direct deposit. Use /auth/direct-deposit/info endpoint for payment details.",
+            "redirect_to": "/auth/direct-deposit/info"
+        }), 200
     elif user_type == 'client':
         billing = Billing.query.filter_by(client_id=user_id).first()
     
@@ -306,9 +320,10 @@ def update_billing_info():
     
     billing = None
     if user_type == 'admin':
-        billing = Billing.query.filter_by(admin_id=user_id).first()
-        if not billing:
-            billing = Billing(admin_id=user_id)
+        return jsonify({
+            "error": "Admins use direct deposit, not billing. Use /auth/direct-deposit/update endpoint.",
+            "redirect_to": "/auth/direct-deposit/update"
+        }), 400
     elif user_type == 'client':
         billing = Billing.query.filter_by(client_id=user_id).first()
         if not billing:
@@ -347,7 +362,10 @@ def delete_billing_info():
     from models.business import Billing
     billing = None
     if user_type == 'admin':
-        billing = Billing.query.filter_by(admin_id=user_id).first()
+        return jsonify({
+            "error": "Admins use direct deposit, not billing. Use /auth/direct-deposit/delete endpoint.",
+            "redirect_to": "/auth/direct-deposit/delete"
+        }), 400
     elif user_type == 'client':
         billing = Billing.query.filter_by(client_id=user_id).first()
     
