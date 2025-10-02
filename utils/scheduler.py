@@ -1,15 +1,16 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
+import os
 
 def sync_google_events():
-    API_URL = "https://schirmer-s-notary-backend.onrender.com/calendar/google-sync-events"
+    API_BASE_URL = os.environ.get("EXPO_PUBLIC_API_URL")
     USER_ID = "1"
     headers = {
         "Content-Type": "application/json",
         "X-User-Id": USER_ID,
     }
     try:
-        response = requests.post(API_URL, headers=headers)
+        response = requests.post(API_BASE_URL, headers=headers)
         print(f"Google sync status: {response.status_code}")
     except Exception as e:
         print(f"Google sync error: {e}")

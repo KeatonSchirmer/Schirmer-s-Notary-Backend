@@ -56,15 +56,19 @@ Schirmer's Notary
     msg['From'] = "no-reply@schirmersnotary.com"
     msg['To'] = to_email
 
-    smtp_server = 'smtp.gmail.com'
-    smtp_port = 587
-    smtp_user = 'schirmer.nikolas@gmail.com'
-    smtp_pass = 'cgyqzlbjwrftwqok'
+    smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+    smtp_port = int(os.environ.get('SMTP_PORT', '587'))
+    smtp_username = os.environ.get('SMTP_USERNAME')
+    smtp_password = os.environ.get('SMTP_PASSWORD')
+
+    if not smtp_username or not smtp_password:
+        print("Email credentials not configured")
+        return
 
     try:
         with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.starttls()
-            server.login(smtp_user, smtp_pass)
+            server.login(smtp_username, smtp_password)
             server.sendmail(msg['From'], [msg['To']], msg.as_string())
     except Exception as e:
         print(f"Failed to send confirmation email: {e}")
@@ -134,7 +138,6 @@ def request_booking():
     db.session.commit()
     send_confirmation_email(email, name, service, date, time)
 
-    # --- Send push notification to client ---
     if client and getattr(client, "push_token", None):
         send_push_notification(
             client.push_token,
@@ -142,7 +145,6 @@ def request_booking():
             f"Your booking for {service} on {date} at {time} was submitted."
         )
 
-    # --- Send push notification to admin(s) ---
     from models.accounts import Admin
     admins = Admin.query.all()
     for admin in admins:

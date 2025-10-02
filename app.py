@@ -2,6 +2,7 @@ from flask import Flask, request, session, jsonify
 from flask_migrate import Migrate
 from flask_cors import CORS
 import requests
+import os
 from routes.jobs import jobs_bp
 from routes.journal import journal_bp
 from routes.clients import clients_bp
@@ -42,22 +43,14 @@ app = Flask(__name__)
 
 start_scheduler(app)
 
-allowed_origins = [
-    'https://schirmer-s-notary-admin-site.onrender.com',
-    'https://schirmer-s-notary-main-site.onrender.com',
-    "*",
-    "http://schirmersnotary.com",
-    "http://www.schirmersnotary.com",
-    "capacitor://localhost",
-    "ionic://localhost",
-    "http://localhost",
-    "null",
-]
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": allowed_origins}}, allow_headers=["Content-Type", "Authorization", "x-user-id"])
-app.config['SECRET_KEY'] = 'DaylynDavis2!'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:DaylynDavis2!@localhost:3306/notary'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://schirmersnotary_user:lRpAqU1MOPm0BvC6TQGH9jQo1sCxKWeH@dpg-d323vmjipnbc73csma5g-a:5432/schirmersnotary'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+CORS(app, supports_credentials=True, resources={r"/*": {}}, allow_headers=["Content-Type", "Authorization", "x-user-id"])
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+
+if not app.config['SECRET_KEY']:
+    raise ValueError("SECRET_KEY environment variable is required")
+if not app.config['SQLALCHEMY_DATABASE_URI']:
+    raise ValueError("DATABASE_URL environment variable is required")
 
 db.init_app(app)
 @app.before_request

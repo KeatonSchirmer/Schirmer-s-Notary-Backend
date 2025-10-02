@@ -184,3 +184,20 @@ def get_pdf(pdf_id):
     if not pdf or not os.path.exists(pdf.file_path):
         return jsonify({"error": "PDF not found"}), 404
     return send_file(pdf.file_path, as_attachment=True)
+
+@journal_bp.route('/<int:entry_id>', methods=['DELETE'])
+def delete_entry(entry_id):
+    entry = JournalEntry.query.get(entry_id)
+    if not entry:
+        return jsonify({"error": "Journal entry not found"}), 404
+
+    PDFs = PDF.query.filter_by(journal_id=entry.id).all()
+    for pdf in PDFs:
+        if os.path.exists(pdf.file_path):
+            os.remove(pdf.file_path)
+        db.session.delete(pdf)
+
+    JournalSigner.query.filter_by(journal_id=entry.id).delete()
+    db.session.delete(entry)
+    db.session.commit()
+    return jsonify({"message": "Journal entry and associated documents deleted"}), 200

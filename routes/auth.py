@@ -9,6 +9,7 @@ import smtplib
 from email.mime.text import MIMEText
 from datetime import timedelta
 import traceback
+import os
 
 auth_bp = Blueprint('auth', __name__, template_folder='frontend/templates')
 
@@ -42,6 +43,66 @@ def logout():
     session.pop("twofa_verified", None)
     return jsonify({"message": "Logout successful"}), 200
 
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    name = data.get('name')
+    email = data.get('email')
+    password = data.get('password')
+
+    if not all([name, email, password]):
+        return jsonify({"message": "Name, email, and password are required"}), 400
+
+    existing_client = Client.query.filter_by(email=email).first()
+    
+    if existing_client:
+        if not existing_client.password_hash:
+            try:
+                existing_client.name = name  # Update name in case it's different
+                existing_client.password_hash = generate_password_hash(password)
+                db.session.commit()
+                
+                session["username"] = existing_client.name
+                session['user_id'] = existing_client.id
+                session['user_type'] = 'client'
+                
+                return jsonify({
+                    "message": "Password added to existing account", 
+                    "user_id": existing_client.id, 
+                    "user_type": "client"
+                }), 200
+                
+            except Exception as e:
+                traceback.print_exc()
+                return jsonify({"error": "Failed to add password to account"}), 500
+        else:
+            return jsonify({"message": "Account with this email already exists"}), 409
+
+    try:
+        password_hash = generate_password_hash(password)
+        new_client = Client(
+            name=name,
+            email=email,
+            password_hash=password_hash
+        )
+        
+        db.session.add(new_client)
+        db.session.commit()
+        
+        session["username"] = new_client.name
+        session['user_id'] = new_client.id
+        session['user_type'] = 'client'
+        
+        return jsonify({
+            "message": "Registration successful", 
+            "user_id": new_client.id, 
+            "user_type": "client"
+        }), 201
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": "Registration failed"}), 500
+    
 @auth_bp.route('/session')
 def get_session_info():
     user_id = session.get('user_id')
@@ -116,7 +177,6 @@ def update_profile():
             user.address = data.get('address', user.address)
             user.phone = data.get('phone', user.phone)
             user.company = data.get('company', user.company)
-            # Save push token if provided
             if 'push_token' in data:
                 user.push_token = data['push_token']
         else:
@@ -124,6 +184,173 @@ def update_profile():
 
         db.session.commit()
         return jsonify({"message": "Profile updated successfully"}), 200
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 
+
+@auth_bp.route('/direct-deposit/info', methods=['GET'])
+def get_direct_deposit_info():
+    user_id = session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id or not user_type:
+        return jsonify({"message": "Not logged in"}), 401
+
+    from models.business import DirectDeposit
+    direct_deposit = None
+    if user_type == 'admin':
+        direct_deposit = DirectDeposit.query.filter_by(admin_id=user_id).first()
+    elif user_type == 'client':
+        direct_deposit = DirectDeposit.query.filter_by(client_id=user_id).first()
+    
+    if not direct_deposit:
+        return jsonify({"message": "No direct deposit info found"}), 404
+    
+    return jsonify(direct_deposit.to_dict()), 200
+    
+@auth_bp.route('/direct-deposit/update', methods=['POST'])
+def update_direct_deposit_info():
+    user_id = session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id or not user_type:
+        return jsonify({"message": "Not logged in"}), 401
+
+    data = request.get_json()
+    from models.business import DirectDeposit
+    
+    direct_deposit = None
+    if user_type == 'admin':
+        direct_deposit = DirectDeposit.query.filter_by(admin_id=user_id).first()
+        if not direct_deposit:
+            direct_deposit = DirectDeposit(admin_id=user_id)
+    elif user_type == 'client':
+        direct_deposit = DirectDeposit.query.filter_by(client_id=user_id).first()
+        if not direct_deposit:
+            direct_deposit = DirectDeposit(client_id=user_id)
+    
+    try:
+        direct_deposit.bank_name = data.get('bank_name', direct_deposit.bank_name)
+        direct_deposit.account_type = data.get('account_type', direct_deposit.account_type)
+        
+        if 'account_number' in data:
+            direct_deposit.account_number = data['account_number']
+        if 'routing_number' in data:
+            direct_deposit.routing_number = data['routing_number']
+        
+        db.session.add(direct_deposit)
+        db.session.commit()
+        return jsonify({"message": "Direct deposit info updated successfully"}), 200
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@auth_bp.route('/direct-deposit/delete', methods=['DELETE'])
+def delete_direct_deposit_info():
+    user_id = session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id or not user_type:
+        return jsonify({"message": "Not logged in"}), 401
+
+    from models.business import DirectDeposit
+    direct_deposit = None
+    if user_type == 'admin':
+        direct_deposit = DirectDeposit.query.filter_by(admin_id=user_id).first()
+    elif user_type == 'client':
+        direct_deposit = DirectDeposit.query.filter_by(client_id=user_id).first()
+    
+    if not direct_deposit:
+        return jsonify({"message": "No direct deposit info found"}), 404
+    
+    try:
+        db.session.delete(direct_deposit)
+        db.session.commit()
+        return jsonify({"message": "Direct deposit info deleted successfully"}), 200
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+    
+@auth_bp.route('/billing/info', methods=['GET'])
+def get_billing_info():
+    user_id = session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id or not user_type:
+        return jsonify({"message": "Not logged in"}), 401
+
+    from models.business import Billing
+    billing = None
+    if user_type == 'admin':
+        billing = Billing.query.filter_by(admin_id=user_id).first()
+    elif user_type == 'client':
+        billing = Billing.query.filter_by(client_id=user_id).first()
+    
+    if not billing:
+        return jsonify({"message": "No billing info found"}), 404
+    
+    return jsonify(billing.to_dict()), 200
+
+@auth_bp.route('/billing/update', methods=['POST'])
+def update_billing_info():
+    user_id = session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id or not user_type:
+        return jsonify({"message": "Not logged in"}), 401
+
+    data = request.get_json()
+    from models.business import Billing
+    
+    billing = None
+    if user_type == 'admin':
+        billing = Billing.query.filter_by(admin_id=user_id).first()
+        if not billing:
+            billing = Billing(admin_id=user_id)
+    elif user_type == 'client':
+        billing = Billing.query.filter_by(client_id=user_id).first()
+        if not billing:
+            billing = Billing(client_id=user_id)
+    
+    try:
+        billing.address = data.get('address', billing.address)
+        billing.city = data.get('city', billing.city)
+        billing.state = data.get('state', billing.state)
+        billing.zip_code = data.get('zip_code', billing.zip_code)
+        billing.country = data.get('country', billing.country)
+        billing.payment_method = data.get('payment_method', billing.payment_method)
+        billing.card_expir = data.get('card_expir', billing.card_expir)
+        
+        if 'tax_id' in data:
+            billing.tax_id = data['tax_id']
+        if 'card_number' in data:
+            billing.card_number = data['card_number']
+        if 'card_cvv' in data:
+            billing.card_cvv = data['card_cvv']
+        
+        db.session.add(billing)
+        db.session.commit()
+        return jsonify({"message": "Billing info updated successfully"}), 200
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@auth_bp.route('/billing/delete', methods=['DELETE'])
+def delete_billing_info():
+    user_id = session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id or not user_type:
+        return jsonify({"message": "Not logged in"}), 401
+
+    from models.business import Billing
+    billing = None
+    if user_type == 'admin':
+        billing = Billing.query.filter_by(admin_id=user_id).first()
+    elif user_type == 'client':
+        billing = Billing.query.filter_by(client_id=user_id).first()
+    
+    if not billing:
+        return jsonify({"message": "No billing info found"}), 404
+    
+    try:
+        db.session.delete(billing)
+        db.session.commit()
+        return jsonify({"message": "Billing info deleted successfully"}), 200
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
@@ -144,10 +371,13 @@ def request_2fa():
     user.two_factor_code_created = datetime.datetime.utcnow()
     db.session.commit()
 
-    smtp_server = 'smtp.gmail.com'
-    smtp_port = 587
-    smtp_user = 'schirmer.nikolas@gmail.com'
-    smtp_password = 'cgyqzlbjwrftwqok'
+    smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+    smtp_port = int(os.environ.get('SMTP_PORT', '587'))
+    smtp_user = os.environ.get('SMTP_USERNAME')
+    smtp_password = os.environ.get('SMTP_PASSWORD')
+
+    if not smtp_user or not smtp_password:
+        return jsonify({"error": "Email service not configured"}), 500
 
     subject = "Your 2FA Confirmation Code"
     body = f"Your confirmation code is: {code}"

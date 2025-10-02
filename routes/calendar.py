@@ -6,28 +6,37 @@ from models.accounts import Admin, SchirmersNotary, Client
 from models.bookings import Booking
 from datetime import datetime, timedelta
 import os
+from datetime import datetime, timedelta
 
 calendar_bp = Blueprint('calendar', __name__, template_folder='frontend/templates')
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
-SERVICE_ACCOUNT_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), '..', 'utils', 'schirmersnotary.json'
-)
-
-def get_calendar_service():
-    print("Connecting to Google Calendar...")
-    creds = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-    service = build('calendar', 'v3', credentials=creds)
-    print("Google Calendar service created.")
-    return service
+SERVICE_ACCOUNT_FILE = os.environ.get('GOOGLE_SERVICE_ACCOUNT_FILE')
+CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
 
 def get_default_user():
     return Admin.query.first()
 
+def get_calendar_service():
+    print("Connecting to Google Calendar...")
+    
+    if not SERVICE_ACCOUNT_FILE or not CALENDAR_ID:
+        raise ValueError("Google Calendar credentials not configured. Set GOOGLE_SERVICE_ACCOUNT_FILE and GOOGLE_CALENDAR_ID environment variables.")
+    
+    try:
+        creds = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        service = build('calendar', 'v3', credentials=creds)
+        print("Google Calendar service created.")
+        return service
+    except Exception as e:
+        print(f"Failed to create Google Calendar service: {e}")
+        raise
+
 def add_event_to_calendar(booking):
-    SCOPES = ['https://www.googleapis.com/auth/calendar']
-    CALENDAR_ID = 'cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com'
+    if not SERVICE_ACCOUNT_FILE or not CALENDAR_ID:
+        print("Google Calendar credentials not configured")
+        return
 
     credentials = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)
@@ -48,6 +57,28 @@ def add_event_to_calendar(booking):
     }
 
     service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
+
+def get_google_busy_times(date_str):
+    """
+    Returns a list of (start_datetime, end_datetime) tuples for busy times from Google Calendar for the given date.
+    """
+    if not CALENDAR_ID:
+        print("Google Calendar ID not configured")
+        return []
+        
+    service = get_calendar_service()
+    date = datetime.strptime(date_str, "%Y-%m-%d")
+    time_min = date.strftime("%Y-%m-%dT00:00:00Z")
+    time_max = (date + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00Z")
+    
+    events_result = service.events().list(
+        calendarId=CALENDAR_ID,
+        timeMin=time_min,
+        timeMax=time_max,
+        singleEvents=True,
+        orderBy='startTime'
+    ).execute()
+    
 
 @calendar_bp.route('/local', methods=['GET'])
 def get_local_events():
@@ -105,6 +136,7 @@ def add_local_event():
     })
 
     return jsonify({"message": "Booking added and sent to Google Calendar.", "id": booking.id}), 201
+
 @calendar_bp.route('/local/<int:booking_id>', methods=['PUT'])
 def edit_local_event(booking_id):
     booking = Booking.query.get(booking_id)
@@ -171,7 +203,7 @@ def get_google_busy_times(date_str):
     time_min = date.strftime("%Y-%m-%dT00:00:00Z")
     time_max = (date + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00Z")
     events_result = service.events().list(
-        calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
+        calendarId=CALENDAR_ID,
         timeMin=time_min,
         timeMax=time_max,
         singleEvents=True,
@@ -277,8 +309,6 @@ def sync_all_local_to_google():
         synced.append(b.id)
     return jsonify({"message": f"Synced {len(synced)} bookings to Google Calendar.", "synced_ids": synced})
 
-from datetime import datetime, timedelta
-
 @calendar_bp.route('/google-sync-to-local', methods=['GET', 'POST'])
 def sync_google_to_local():
     print("Starting Google Calendar sync...")
@@ -299,7 +329,7 @@ def sync_google_to_local():
         admin_id = admin.id if admin else None
 
         events_result = service.events().list(
-            calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
+            calendarId=CALENDAR_ID,
             timeMin=time_min,
             maxResults=50,
             singleEvents=True,
@@ -372,7 +402,7 @@ def get_all_events():
     service = get_calendar_service()
     time_min = (datetime.utcnow() - timedelta(days=30)).isoformat() + 'Z'
     events_result = service.events().list(
-        calendarId='cf6dae28a9000ee5aed76a92ae9ab9fe9513cde627631c44e4c4280b1011ebee@group.calendar.google.com',
+        calendarId=CALENDAR_ID,
         timeMin=time_min,
         maxResults=50,
         singleEvents=True,
