@@ -96,6 +96,7 @@ def get_all_bookings():
         ]
     })
 
+#TODO: Need to integrate fixes to have notes not filled with other info
 @jobs_bp.route('/request', methods=['POST'])
 def request_booking():
     data = request.get_json()
@@ -373,7 +374,8 @@ def submit_feedback(booking_id):
     except Exception as e:
         print(f"Failed to submit feedback: {e}")
         return jsonify({"error": "Failed to submit feedback"}), 500
-    
+
+#! Don't really need this    
 @jobs_bp.route('/create', methods=['POST'])
 def create_booking():
     """Alternative endpoint for booking creation"""

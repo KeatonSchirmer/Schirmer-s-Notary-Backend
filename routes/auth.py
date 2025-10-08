@@ -77,44 +77,48 @@ def require_admin():
     """Helper function to check if current user is admin"""
     user_id = request.headers.get('X-User-Id') or session.get('user_id')
     user_type = session.get('user_type')
-    
+    print(f"[require_admin] X-User-Id: {user_id}, user_type: {user_type}")
     if not user_id:
+        print("[require_admin] No user_id provided")
         return None
-        
     if not user_type:
         admin_user = Admin.query.get(user_id)
         if admin_user:
             user_type = 'admin'
         else:
+            print(f"[require_admin] No admin found for user_id {user_id}")
             return None
-    
     if user_type != 'admin':
+        print(f"[require_admin] user_type {user_type} is not admin")
         return None
+    print(f"[require_admin] Admin authentication passed for user_id={user_id}")
     return user_id
 
 def require_ceo():
     """Helper function to check if current user is CEO"""
     user_id = request.headers.get('X-User-Id') or session.get('user_id')
     user_type = session.get('user_type')
-    
+    print(f"[require_ceo] X-User-Id: {user_id}, user_type: {user_type}")
     if not user_id:
+        print("[require_ceo] No user_id provided")
         return None
-        
     if not user_type:
         admin_user = Admin.query.get(user_id)
         if admin_user:
-            user_type = 'admin'
             user_id = 1
+            print(f"[require_ceo] Found admin, setting user_type=admin, user_id=1")
         else:
+            print(f"[require_ceo] No admin found for user_id {user_id}")
             return None
-    
     if user_type != 'admin':
+        print(f"[require_ceo] user_type {user_type} is not admin")
         return None
-    
     ceo_record = SchirmersNotary.query.first()
+    print(f"[require_ceo] ceo_record: {ceo_record}")
     if not ceo_record or ceo_record.ceo_admin_id != int(user_id):
+        print(f"[require_ceo] ceo_record missing or ceo_admin_id mismatch (expected {user_id}, got {getattr(ceo_record, 'ceo_admin_id', None)})")
         return None
-    
+    print(f"[require_ceo] CEO authentication passed for user_id={user_id}")
     return user_id
 
 def get_user_subscription_data(user_id):
@@ -643,7 +647,6 @@ def get_direct_deposit_info():
     if not user_id:
         return jsonify({"message": "Not logged in"}), 401
     
-    # If user_type is not in session, determine it by checking if user exists as admin or client
     if not user_type:
         admin_user = Admin.query.get(user_id)
         if admin_user:
@@ -1510,6 +1513,7 @@ def system_reset():
     # Simulate system reset
     return jsonify({"message": "System reset to defaults"}), 200
 
+
 #========== SCHIRMER'S NOTARY SPECIFIC ==========
 
 @auth_bp.route('/office/info', methods=['GET'])
@@ -1706,3 +1710,4 @@ def delete_subscription(sub_id):
     db.session.delete(sub)
     db.session.commit()
     return jsonify({'message': 'Subscription deleted'})
+
