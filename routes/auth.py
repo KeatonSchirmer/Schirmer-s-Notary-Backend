@@ -831,13 +831,13 @@ def get_all_admins():
                 "account_status": getattr(admin, 'account_status', 'confirmed') if admin.password_hash else "pending",
                 "created_at": admin.created_at.isoformat() if hasattr(admin, 'created_at') and admin.created_at else None,
                 # Employee-specific fields for Master Controls
-                "employment_type": getattr(admin, 'employment_type', 'full_time'),
-                "salary": float(getattr(admin, 'salary', 0.0)),
-                "hourly_rate": float(getattr(admin, 'hourly_rate', 0.0)),
-                "hours_per_week": getattr(admin, 'hours_per_week', 40),
-                "pay_period_start": getattr(admin, 'pay_period_start', None),
-                "pay_period_end": getattr(admin, 'pay_period_end', None),
-                "availability": getattr(admin, 'availability', {})
+                    "employment_type": getattr(admin, 'employment_type', 'full_time'),
+                    "salary": float(getattr(admin, 'salary', 0.0) or 0.0),
+                    "hourly_rate": float(getattr(admin, 'hourly_rate', 0.0) or 0.0),
+                    "hours_per_week": getattr(admin, 'hours_per_week', 40),
+                    "pay_period_start": getattr(admin, 'pay_period_start', None),
+                    "pay_period_end": getattr(admin, 'pay_period_end', None),
+                    "availability": getattr(admin, 'availability', {})
             }
             admin_list.append(admin_data)
             
@@ -1376,6 +1376,7 @@ def update_business_account():
 
 
 # ========== SYSTEM SETTINGS ENDPOINTS ==========
+# TODO: None of these are implemented in the database yet
 
 @auth_bp.route('/admin/settings', methods=['GET'])
 def get_system_settings():
@@ -1489,6 +1490,7 @@ def export_system_settings():
 
 
 # ========== BACKUP MANAGEMENT ENDPOINTS ==========
+#TODO: None of these are implemented in the database/file system yet
 
 @auth_bp.route('/admin/backups/list', methods=['GET'])
 def get_backup_history():
