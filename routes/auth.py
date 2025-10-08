@@ -668,7 +668,14 @@ def get_direct_deposit_info():
         }), 200
         
     if not direct_deposit:
-        return jsonify({"message": "No direct deposit info found"}), 404
+        return jsonify({
+            "message": "No direct deposit info found", 
+            "has_setup": False,
+            "bank_name": "",
+            "account_type": "",
+            "account_number": "",
+            "routing_number": ""
+        }), 200
     
     return jsonify(direct_deposit.to_dict()), 200
     
@@ -751,7 +758,7 @@ def delete_direct_deposit_info():
         }), 400
     
     if not direct_deposit:
-        return jsonify({"message": "No direct deposit info found"}), 404
+        return jsonify({"message": "No direct deposit info to delete"}), 200
     
     try:
         db.session.delete(direct_deposit)
@@ -1098,7 +1105,20 @@ def get_billing_info():
         billing = Billing.query.filter_by(client_id=user_id).first()
     
     if not billing:
-        return jsonify({"message": "No billing info found"}), 404
+        return jsonify({
+            "message": "No billing info found",
+            "has_setup": False,
+            "address": "",
+            "city": "",
+            "state": "",
+            "zip_code": "",
+            "country": "",
+            "tax_id": "",
+            "payment_method": "",
+            "card_expir": "",
+            "card_cvv": "",
+            "card_number": ""
+        }), 200
     
     return jsonify(billing.to_dict()), 200
 
@@ -1188,7 +1208,7 @@ def delete_billing_info():
         billing = Billing.query.filter_by(client_id=user_id).first()
     
     if not billing:
-        return jsonify({"message": "No billing info found"}), 404
+        return jsonify({"message": "No billing info to delete"}), 200
     
     try:
         db.session.delete(billing)
