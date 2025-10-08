@@ -21,7 +21,7 @@ class Admin(db.Model):
     google_token_expires = db.Column(db.DateTime)
     google_calendar_connected = db.Column(db.Boolean, default=False)
     
-    employment_type = db.Column(db.Enum("full_time", "part_time", "contractor", name="employment_type"), default="full_time")
+    employment_type = db.Column(db.Enum("full_time", "part_time", name="employment_type"), default="full_time")
     salary = db.Column(db.Numeric(10, 2), default=0.0)
     hourly_rate = db.Column(db.Numeric(8, 2), default=0.0)
     hours_per_week = db.Column(db.Integer, default=40)
@@ -79,6 +79,8 @@ class SchirmersNotary(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     address = db.Column(db.String(255))
+    phone = db.Column(db.String(20))
+    email = db.Column(db.String(120), unique=True)
     office_start = db.Column(db.String(5))
     office_end = db.Column(db.String(5))
     available_days = db.Column(db.String(50))

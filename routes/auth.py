@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 from database.db import db
-from models.accounts import Admin, Client
+from models.accounts import Admin, Client, SchirmersNotary
 from models.bookings import Booking
 import datetime
 import random
@@ -74,10 +74,46 @@ SUBSCRIPTION_PLANS = {
 
 def require_admin():
     """Helper function to check if current user is admin"""
-    user_id = session.get('user_id')
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
     user_type = session.get('user_type')
-    if not user_id or user_type != 'admin':
+    
+    if not user_id:
         return None
+        
+    if not user_type:
+        admin_user = Admin.query.get(user_id)
+        if admin_user:
+            user_type = 'admin'
+        else:
+            return None
+    
+    if user_type != 'admin':
+        return None
+    return user_id
+
+def require_ceo():
+    """Helper function to check if current user is CEO"""
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
+    user_type = session.get('user_type')
+    
+    if not user_id:
+        return None
+        
+    if not user_type:
+        admin_user = Admin.query.get(user_id)
+        if admin_user:
+            user_type = 'admin'
+            user_id = 1
+        else:
+            return None
+    
+    if user_type != 'admin':
+        return None
+    
+    ceo_record = SchirmersNotary.query.first()
+    if not ceo_record or ceo_record.ceo_admin_id != int(user_id):
+        return None
+    
     return user_id
 
 def get_user_subscription_data(user_id):
@@ -182,6 +218,8 @@ def get_user_business_data(user_id):
             "department": ""
         }
 
+#=========== ADMIN AND CLIENT ================
+
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -212,80 +250,45 @@ def logout():
     session.pop("twofa_verified", None)
     return jsonify({"message": "Logout successful"}), 200
 
-@auth_bp.route('/register', methods=['POST'])
-def register():
-    data = request.get_json()
-    name = data.get('name')
-    email = data.get('email')
-    password = data.get('password')
-
-    if not all([name, email, password]):
-        return jsonify({"message": "Name, email, and password are required"}), 400
-
-    existing_client = Client.query.filter_by(email=email).first()
-    
-    if existing_client:
-        if not existing_client.password_hash:
-            try:
-                existing_client.name = name  # Update name in case it's different
-                existing_client.password_hash = generate_password_hash(password)
-                db.session.commit()
-                
-                session["username"] = existing_client.name
-                session['user_id'] = existing_client.id
-                session['user_type'] = 'client'
-                
-                return jsonify({
-                    "message": "Password added to existing account", 
-                    "user_id": existing_client.id, 
-                    "user_type": "client"
-                }), 200
-                
-            except Exception as e:
-                traceback.print_exc()
-                return jsonify({"error": "Failed to add password to account"}), 500
-        else:
-            return jsonify({"message": "Account with this email already exists"}), 409
-
-    try:
-        password_hash = generate_password_hash(password)
-        new_client = Client(
-            name=name,
-            email=email,
-            password_hash=password_hash
-        )
-        
-        db.session.add(new_client)
-        db.session.commit()
-        
-        session["username"] = new_client.name
-        session['user_id'] = new_client.id
-        session['user_type'] = 'client'
-        
-        return jsonify({
-            "message": "Registration successful", 
-            "user_id": new_client.id, 
-            "user_type": "client"
-        }), 201
-        
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": "Registration failed"}), 500
-    
 @auth_bp.route('/session')
 def get_session_info():
-    user_id = session.get('user_id')
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
     user_type = session.get('user_type')
     if not user_id:
         return jsonify({'logged_in': False}), 401
+        
+    # If user_type is not in session, determine it by checking if user exists as admin or client
+    if not user_type:
+        admin_user = Admin.query.get(user_id)
+        if admin_user:
+            user_type = 'admin'
+        else:
+            client_user = Client.query.get(user_id)
+            if client_user:
+                user_type = 'client'
+            else:
+                return jsonify({'logged_in': False}), 401
+                
     return jsonify({'logged_in': True, 'user_id': user_id, 'user_type': user_type})
 
 @auth_bp.route('/profile', methods=['GET'])
 def view_profile():
-    user_id = session.get('user_id')
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
     user_type = session.get('user_type')
-    if not user_id or not user_type:
+    if not user_id:
         return jsonify({"message": "Not logged in"}), 401
+    
+    # If user_type is not in session, determine it by checking if user exists as admin or client
+    if not user_type:
+        admin_user = Admin.query.get(user_id)
+        if admin_user:
+            user_type = 'admin'
+        else:
+            client_user = Client.query.get(user_id)
+            if client_user:
+                user_type = 'client'
+            else:
+                return jsonify({"message": "User not found"}), 404
 
     if user_type == 'admin':
         user = Admin.query.get(user_id)
@@ -317,10 +320,22 @@ def view_profile():
 
 @auth_bp.route('/profile/update', methods=['PATCH'])
 def update_profile():
-    user_id = session.get('user_id')
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
     user_type = session.get('user_type')
-    if not user_id or not user_type:
+    if not user_id:
         return jsonify({"message": "Not logged in"}), 401
+    
+    # If user_type is not in session, determine it by checking if user exists as admin or client
+    if not user_type:
+        admin_user = Admin.query.get(user_id)
+        if admin_user:
+            user_type = 'admin'
+        else:
+            client_user = Client.query.get(user_id)
+            if client_user:
+                user_type = 'client'
+            else:
+                return jsonify({"message": "User not found"}), 404
 
     data = request.get_json()
     try:
@@ -356,191 +371,6 @@ def update_profile():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 
-
-@auth_bp.route('/direct-deposit/info', methods=['GET'])
-def get_direct_deposit_info():
-    user_id = session.get('user_id')
-    user_type = session.get('user_type')
-    if not user_id or not user_type:
-        return jsonify({"message": "Not logged in"}), 401
-
-    from models.business import DirectDeposit
-    direct_deposit = None
-    if user_type == 'admin':
-        direct_deposit = DirectDeposit.query.filter_by(admin_id=user_id).first()
-    elif user_type == 'client':
-        return jsonify({
-            "user_type": "client",
-            "payment_method": "billing", 
-            "message": "Client payments are processed via billing. Use /auth/billing/info endpoint for payment details.",
-            "redirect_to": "/auth/billing/info"
-        }), 200
-        
-    if not direct_deposit:
-        return jsonify({"message": "No direct deposit info found"}), 404
-    
-    return jsonify(direct_deposit.to_dict()), 200
-    
-@auth_bp.route('/direct-deposit/update', methods=['POST'])
-def update_direct_deposit_info():
-    user_id = session.get('user_id')
-    user_type = session.get('user_type')
-    if not user_id or not user_type:
-        return jsonify({"message": "Not logged in"}), 401
-
-    data = request.get_json()
-    from models.business import DirectDeposit
-    
-    direct_deposit = None
-    if user_type == 'admin':
-        direct_deposit = DirectDeposit.query.filter_by(admin_id=user_id).first()
-        if not direct_deposit:
-            direct_deposit = DirectDeposit(admin_id=user_id)
-    elif user_type == 'client':
-        return jsonify({
-            "error": "Clients use billing, not direct deposit. Use /auth/billing/update endpoint.",
-            "redirect_to": "/auth/billing/update"
-        }), 400
-    
-    try:
-        direct_deposit.bank_name = data.get('bank_name', direct_deposit.bank_name)
-        direct_deposit.account_type = data.get('account_type', direct_deposit.account_type)
-        
-        if 'account_number' in data:
-            direct_deposit.account_number = data['account_number']
-        if 'routing_number' in data:
-            direct_deposit.routing_number = data['routing_number']
-        
-        db.session.add(direct_deposit)
-        db.session.commit()
-        return jsonify({"message": "Direct deposit info updated successfully"}), 200
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-@auth_bp.route('/direct-deposit/delete', methods=['DELETE'])
-def delete_direct_deposit_info():
-    user_id = session.get('user_id')
-    user_type = session.get('user_type')
-    if not user_id or not user_type:
-        return jsonify({"message": "Not logged in"}), 401
-
-    from models.business import DirectDeposit
-    direct_deposit = None
-    if user_type == 'admin':
-        direct_deposit = DirectDeposit.query.filter_by(admin_id=user_id).first()
-    elif user_type == 'client':
-        return jsonify({
-            "error": "Clients use billing, not direct deposit. Use /auth/billing/delete endpoint.",
-            "redirect_to": "/auth/billing/delete"
-        }), 400
-    
-    if not direct_deposit:
-        return jsonify({"message": "No direct deposit info found"}), 404
-    
-    try:
-        db.session.delete(direct_deposit)
-        db.session.commit()
-        return jsonify({"message": "Direct deposit info deleted successfully"}), 200
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-    
-@auth_bp.route('/billing/info', methods=['GET'])
-def get_billing_info():
-    user_id = session.get('user_id')
-    user_type = session.get('user_type')
-    if not user_id or not user_type:
-        return jsonify({"message": "Not logged in"}), 401
-
-    from models.business import Billing
-    billing = None
-    if user_type == 'admin':
-        return jsonify({
-            "user_type": "admin",
-            "payment_method": "direct_deposit", 
-            "message": "Admin payments are processed via direct deposit. Use /auth/direct-deposit/info endpoint for payment details.",
-            "redirect_to": "/auth/direct-deposit/info"
-        }), 200
-    elif user_type == 'client':
-        billing = Billing.query.filter_by(client_id=user_id).first()
-    
-    if not billing:
-        return jsonify({"message": "No billing info found"}), 404
-    
-    return jsonify(billing.to_dict()), 200
-
-@auth_bp.route('/billing/update', methods=['POST'])
-def update_billing_info():
-    user_id = session.get('user_id')
-    user_type = session.get('user_type')
-    if not user_id or not user_type:
-        return jsonify({"message": "Not logged in"}), 401
-
-    data = request.get_json()
-    from models.business import Billing
-    
-    billing = None
-    if user_type == 'admin':
-        return jsonify({
-            "error": "Admins use direct deposit, not billing. Use /auth/direct-deposit/update endpoint.",
-            "redirect_to": "/auth/direct-deposit/update"
-        }), 400
-    elif user_type == 'client':
-        billing = Billing.query.filter_by(client_id=user_id).first()
-        if not billing:
-            billing = Billing(client_id=user_id)
-    
-    try:
-        billing.address = data.get('address', billing.address)
-        billing.city = data.get('city', billing.city)
-        billing.state = data.get('state', billing.state)
-        billing.zip_code = data.get('zip_code', billing.zip_code)
-        billing.country = data.get('country', billing.country)
-        billing.payment_method = data.get('payment_method', billing.payment_method)
-        billing.card_expir = data.get('card_expir', billing.card_expir)
-        
-        if 'tax_id' in data:
-            billing.tax_id = data['tax_id']
-        if 'card_number' in data:
-            billing.card_number = data['card_number']
-        if 'card_cvv' in data:
-            billing.card_cvv = data['card_cvv']
-        
-        db.session.add(billing)
-        db.session.commit()
-        return jsonify({"message": "Billing info updated successfully"}), 200
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-@auth_bp.route('/billing/delete', methods=['DELETE'])
-def delete_billing_info():
-    user_id = session.get('user_id')
-    user_type = session.get('user_type')
-    if not user_id or not user_type:
-        return jsonify({"message": "Not logged in"}), 401
-
-    from models.business import Billing
-    billing = None
-    if user_type == 'admin':
-        return jsonify({
-            "error": "Admins use direct deposit, not billing. Use /auth/direct-deposit/delete endpoint.",
-            "redirect_to": "/auth/direct-deposit/delete"
-        }), 400
-    elif user_type == 'client':
-        billing = Billing.query.filter_by(client_id=user_id).first()
-    
-    if not billing:
-        return jsonify({"message": "No billing info found"}), 404
-    
-    try:
-        db.session.delete(billing)
-        db.session.commit()
-        return jsonify({"message": "Billing info deleted successfully"}), 200
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
 
 @auth_bp.route('/twofa/request', methods=['POST'])
 def request_2fa():
@@ -726,163 +556,7 @@ def disconnect_google_calendar():
         
     except Exception as e:
         return jsonify({"error": f"Failed to disconnect: {str(e)}"}), 500
-    
-@auth_bp.route('/subscription/<int:user_id>', methods=['GET'])
-def get_user_subscription(user_id):
-    """Get subscription information for a user"""
-    try:
-        subscription_data = get_user_subscription_data(user_id)
-        return jsonify(subscription_data), 200
-    except Exception as e:
-        print(f"Error fetching subscription: {e}")
-        return jsonify({"error": "Failed to fetch subscription"}), 500
-
-@auth_bp.route('/subscription', methods=['GET'])
-def get_current_user_subscription():
-    """Get subscription for currently logged in user"""
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({"error": "Not logged in"}), 401
-    
-    try:
-        subscription_data = get_user_subscription_data(user_id)
-        return jsonify(subscription_data), 200
-    except Exception as e:
-        print(f"Error fetching subscription: {e}")
-        return jsonify({"error": "Failed to fetch subscription"}), 500
-
-@auth_bp.route('/subscription/plans', methods=['GET'])
-def get_subscription_plans():
-    """Get available subscription plans"""
-    return jsonify({"plans": SUBSCRIPTION_PLANS}), 200
-
-@auth_bp.route('/subscription/update', methods=['POST'])
-def update_subscription():
-    """Update user subscription"""
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({"error": "Not logged in"}), 401
-    
-    try:
-        data = request.get_json()
-        plan_name = data.get('plan')
-        
-        if plan_name not in SUBSCRIPTION_PLANS and plan_name != "None":
-            return jsonify({"error": "Invalid subscription plan"}), 400
-        
-        # Update the client's premium field in the database
-        client = Client.query.get(user_id)
-        if not client:
-            return jsonify({"error": "Client not found"}), 404
-            
-        client.premium = plan_name
-        db.session.commit()
-        
-        return jsonify({
-            "message": f"Subscription updated to {plan_name}",
-            "plan": plan_name,
-            "status": "active" if plan_name != "None" else "inactive"
-        }), 200
-        
-    except Exception as e:
-        print(f"Error updating subscription: {e}")
-        db.session.rollback()
-        return jsonify({"error": "Failed to update subscription"}), 500
-
-@auth_bp.route('/subscription/cancel', methods=['POST'])
-def cancel_subscription():
-    """Cancel user subscription"""
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({"error": "Not logged in"}), 401
-    
-    try:
-        # Update the client's premium field to "None" to cancel subscription
-        client = Client.query.get(user_id)
-        if not client:
-            return jsonify({"error": "Client not found"}), 404
-            
-        client.premium = "None"
-        db.session.commit()
-        
-        return jsonify({
-            "message": "Subscription cancelled successfully",
-            "status": "cancelled"
-        }), 200
-        
-    except Exception as e:
-        print(f"Error cancelling subscription: {e}")
-        db.session.rollback()
-        return jsonify({"error": "Failed to cancel subscription"}), 500
-
-@auth_bp.route('/subscription/usage', methods=['POST'])
-def track_subscription_usage():
-    """Track subscription usage for a booking"""
-    try:
-        data = request.get_json()
-        
-        # For now, just return success
-        # In production, you'd track usage in database
-        
-        return jsonify({
-            "message": "Usage tracked successfully",
-            "client_id": data.get('client_id'),
-            "booking_id": data.get('booking_id'),
-            "service_amount": data.get('service_amount'),
-            "discount_applied": data.get('discount_applied')
-        }), 200
-        
-    except Exception as e:
-        print(f"Error tracking usage: {e}")
-        return jsonify({"error": "Failed to track usage"}), 500
-
-@auth_bp.route('/business/<int:user_id>', methods=['GET'])
-def get_user_business(user_id):
-    """Get business account information for a user"""
-    try:
-        business_data = get_user_business_data(user_id)
-        return jsonify(business_data), 200
-    except Exception as e:
-        print(f"Error fetching business data: {e}")
-        return jsonify({"error": "Failed to fetch business data"}), 500
-
-@auth_bp.route('/business', methods=['GET'])
-def get_current_user_business():
-    """Get business account for currently logged in user"""
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({"error": "Not logged in"}), 401
-    
-    try:
-        business_data = get_user_business_data(user_id)
-        return jsonify(business_data), 200
-    except Exception as e:
-        print(f"Error fetching business data: {e}")
-        return jsonify({"error": "Failed to fetch business data"}), 500
-
-@auth_bp.route('/business/update', methods=['POST'])
-def update_business_account():
-    """Update business account information"""
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({"error": "Not logged in"}), 401
-    
-    try:
-        data = request.get_json()
-        
-        # For now, just return success
-        # In production, you'd update the database
-        
-        return jsonify({
-            "message": "Business account updated successfully",
-            "isBusinessAccount": data.get('isBusinessAccount', False),
-            "companyName": data.get('companyName', '')
-        }), 200
-        
-    except Exception as e:
-        print(f"Error updating business account: {e}")
-        return jsonify({"error": "Failed to update business account"}), 500
-
+ 
 @auth_bp.route('/preferences', methods=['GET'])
 def get_user_preferences():
     """Get user preferences"""
@@ -958,7 +632,135 @@ def delete_profile():
         db.session.rollback()
         print(f"Error deleting profile: {e}")
         return jsonify({"error": "Failed to delete account"}), 500
-  
+
+
+#=========== ADMINS ===============
+
+@auth_bp.route('/direct-deposit/info', methods=['GET'])
+def get_direct_deposit_info():
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id:
+        return jsonify({"message": "Not logged in"}), 401
+    
+    # If user_type is not in session, determine it by checking if user exists as admin or client
+    if not user_type:
+        admin_user = Admin.query.get(user_id)
+        if admin_user:
+            user_type = 'admin'
+        else:
+            client_user = Client.query.get(user_id)
+            if client_user:
+                user_type = 'client'
+            else:
+                return jsonify({"message": "User not found"}), 404
+
+    from models.business import DirectDeposit
+    direct_deposit = None
+    if user_type == 'admin':
+        direct_deposit = DirectDeposit.query.filter_by(admin_id=user_id).first()
+    elif user_type == 'client':
+        return jsonify({
+            "user_type": "client",
+            "payment_method": "billing", 
+            "message": "Client payments are processed via billing. Use /auth/billing/info endpoint for payment details.",
+            "redirect_to": "/auth/billing/info"
+        }), 200
+        
+    if not direct_deposit:
+        return jsonify({"message": "No direct deposit info found"}), 404
+    
+    return jsonify(direct_deposit.to_dict()), 200
+    
+@auth_bp.route('/direct-deposit/update', methods=['POST'])
+def update_direct_deposit_info():
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id:
+        return jsonify({"message": "Not logged in"}), 401
+    
+    # If user_type is not in session, determine it by checking if user exists as admin or client
+    if not user_type:
+        admin_user = Admin.query.get(user_id)
+        if admin_user:
+            user_type = 'admin'
+        else:
+            client_user = Client.query.get(user_id)
+            if client_user:
+                user_type = 'client'
+            else:
+                return jsonify({"message": "User not found"}), 404
+
+    data = request.get_json()
+    from models.business import DirectDeposit
+    
+    direct_deposit = None
+    if user_type == 'admin':
+        direct_deposit = DirectDeposit.query.filter_by(admin_id=user_id).first()
+        if not direct_deposit:
+            direct_deposit = DirectDeposit(admin_id=user_id)
+    elif user_type == 'client':
+        return jsonify({
+            "error": "Clients use billing, not direct deposit. Use /auth/billing/update endpoint.",
+            "redirect_to": "/auth/billing/update"
+        }), 400
+    
+    try:
+        direct_deposit.bank_name = data.get('bank_name', direct_deposit.bank_name)
+        direct_deposit.account_type = data.get('account_type', direct_deposit.account_type)
+        
+        if 'account_number' in data:
+            direct_deposit.account_number = data['account_number']
+        if 'routing_number' in data:
+            direct_deposit.routing_number = data['routing_number']
+        
+        db.session.add(direct_deposit)
+        db.session.commit()
+        return jsonify({"message": "Direct deposit info updated successfully"}), 200
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@auth_bp.route('/direct-deposit/delete', methods=['DELETE'])
+def delete_direct_deposit_info():
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id:
+        return jsonify({"message": "Not logged in"}), 401
+    
+    # If user_type is not in session, determine it by checking if user exists as admin or client
+    if not user_type:
+        admin_user = Admin.query.get(user_id)
+        if admin_user:
+            user_type = 'admin'
+        else:
+            client_user = Client.query.get(user_id)
+            if client_user:
+                user_type = 'client'
+            else:
+                return jsonify({"message": "User not found"}), 404
+
+    from models.business import DirectDeposit
+    direct_deposit = None
+    if user_type == 'admin':
+        direct_deposit = DirectDeposit.query.filter_by(admin_id=user_id).first()
+    elif user_type == 'client':
+        return jsonify({
+            "error": "Clients use billing, not direct deposit. Use /auth/billing/delete endpoint.",
+            "redirect_to": "/auth/billing/delete"
+        }), 400
+    
+    if not direct_deposit:
+        return jsonify({"message": "No direct deposit info found"}), 404
+    
+    try:
+        db.session.delete(direct_deposit)
+        db.session.commit()
+        return jsonify({"message": "Direct deposit info deleted successfully"}), 200
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+ 
 @auth_bp.route('/admin/stats', methods=['GET'])
 def get_admin_stats():
     """Get database statistics for Master Controls dashboard"""
@@ -1201,6 +1003,358 @@ def resend_admin_invitation(admin_id):
         print(f"Error resending invitation: {e}")
         return jsonify({"error": "Failed to resend invitation"}), 500
 
+
+#=========== CLIENTS ================
+
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    name = data.get('name')
+    email = data.get('email')
+    password = data.get('password')
+
+    if not all([name, email, password]):
+        return jsonify({"message": "Name, email, and password are required"}), 400
+
+    existing_client = Client.query.filter_by(email=email).first()
+    
+    if existing_client:
+        if not existing_client.password_hash:
+            try:
+                existing_client.name = name
+                existing_client.password_hash = generate_password_hash(password)
+                db.session.commit()
+                
+                session["username"] = existing_client.name
+                session['user_id'] = existing_client.id
+                session['user_type'] = 'client'
+                
+                return jsonify({
+                    "message": "Password added to existing account", 
+                    "user_id": existing_client.id, 
+                    "user_type": "client"
+                }), 200
+                
+            except Exception as e:
+                traceback.print_exc()
+                return jsonify({"error": "Failed to add password to account"}), 500
+        else:
+            return jsonify({"message": "Account with this email already exists"}), 409
+
+    try:
+        password_hash = generate_password_hash(password)
+        new_client = Client(
+            name=name,
+            email=email,
+            password_hash=password_hash
+        )
+        
+        db.session.add(new_client)
+        db.session.commit()
+        
+        session["username"] = new_client.name
+        session['user_id'] = new_client.id
+        session['user_type'] = 'client'
+        
+        return jsonify({
+            "message": "Registration successful", 
+            "user_id": new_client.id, 
+            "user_type": "client"
+        }), 201
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": "Registration failed"}), 500
+   
+@auth_bp.route('/billing/info', methods=['GET'])
+def get_billing_info():
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id:
+        return jsonify({"message": "Not logged in"}), 401
+    
+    # If user_type is not in session, determine it by checking if user exists as admin or client
+    if not user_type:
+        admin_user = Admin.query.get(user_id)
+        if admin_user:
+            user_type = 'admin'
+        else:
+            client_user = Client.query.get(user_id)
+            if client_user:
+                user_type = 'client'
+            else:
+                return jsonify({"message": "User not found"}), 404
+
+    from models.business import Billing
+    billing = None
+    if user_type == 'admin':
+        return jsonify({
+            "user_type": "admin",
+            "payment_method": "direct_deposit", 
+            "message": "Admin payments are processed via direct deposit. Use /auth/direct-deposit/info endpoint for payment details.",
+            "redirect_to": "/auth/direct-deposit/info"
+        }), 200
+    elif user_type == 'client':
+        billing = Billing.query.filter_by(client_id=user_id).first()
+    
+    if not billing:
+        return jsonify({"message": "No billing info found"}), 404
+    
+    return jsonify(billing.to_dict()), 200
+
+@auth_bp.route('/billing/update', methods=['POST'])
+def update_billing_info():
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id:
+        return jsonify({"message": "Not logged in"}), 401
+    
+    # If user_type is not in session, determine it by checking if user exists as admin or client
+    if not user_type:
+        admin_user = Admin.query.get(user_id)
+        if admin_user:
+            user_type = 'admin'
+        else:
+            client_user = Client.query.get(user_id)
+            if client_user:
+                user_type = 'client'
+            else:
+                return jsonify({"message": "User not found"}), 404
+
+    data = request.get_json()
+    from models.business import Billing
+    
+    billing = None
+    if user_type == 'admin':
+        return jsonify({
+            "error": "Admins use direct deposit, not billing. Use /auth/direct-deposit/update endpoint.",
+            "redirect_to": "/auth/direct-deposit/update"
+        }), 400
+    elif user_type == 'client':
+        billing = Billing.query.filter_by(client_id=user_id).first()
+        if not billing:
+            billing = Billing(client_id=user_id)
+    
+    try:
+        billing.address = data.get('address', billing.address)
+        billing.city = data.get('city', billing.city)
+        billing.state = data.get('state', billing.state)
+        billing.zip_code = data.get('zip_code', billing.zip_code)
+        billing.country = data.get('country', billing.country)
+        billing.payment_method = data.get('payment_method', billing.payment_method)
+        billing.card_expir = data.get('card_expir', billing.card_expir)
+        
+        if 'tax_id' in data:
+            billing.tax_id = data['tax_id']
+        if 'card_number' in data:
+            billing.card_number = data['card_number']
+        if 'card_cvv' in data:
+            billing.card_cvv = data['card_cvv']
+        
+        db.session.add(billing)
+        db.session.commit()
+        return jsonify({"message": "Billing info updated successfully"}), 200
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@auth_bp.route('/billing/delete', methods=['DELETE'])
+def delete_billing_info():
+    user_id = request.headers.get('X-User-Id') or session.get('user_id')
+    user_type = session.get('user_type')
+    if not user_id:
+        return jsonify({"message": "Not logged in"}), 401
+    
+    # If user_type is not in session, determine it by checking if user exists as admin or client
+    if not user_type:
+        admin_user = Admin.query.get(user_id)
+        if admin_user:
+            user_type = 'admin'
+        else:
+            client_user = Client.query.get(user_id)
+            if client_user:
+                user_type = 'client'
+            else:
+                return jsonify({"message": "User not found"}), 404
+
+    from models.business import Billing
+    billing = None
+    if user_type == 'admin':
+        return jsonify({
+            "error": "Admins use direct deposit, not billing. Use /auth/direct-deposit/delete endpoint.",
+            "redirect_to": "/auth/direct-deposit/delete"
+        }), 400
+    elif user_type == 'client':
+        billing = Billing.query.filter_by(client_id=user_id).first()
+    
+    if not billing:
+        return jsonify({"message": "No billing info found"}), 404
+    
+    try:
+        db.session.delete(billing)
+        db.session.commit()
+        return jsonify({"message": "Billing info deleted successfully"}), 200
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@auth_bp.route('/subscription/<int:user_id>', methods=['GET'])
+def get_user_subscription(user_id):
+    """Get subscription information for a user"""
+    try:
+        subscription_data = get_user_subscription_data(user_id)
+        return jsonify(subscription_data), 200
+    except Exception as e:
+        print(f"Error fetching subscription: {e}")
+        return jsonify({"error": "Failed to fetch subscription"}), 500
+
+@auth_bp.route('/subscription', methods=['GET'])
+def get_current_user_subscription():
+    """Get subscription for currently logged in user"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    try:
+        subscription_data = get_user_subscription_data(user_id)
+        return jsonify(subscription_data), 200
+    except Exception as e:
+        print(f"Error fetching subscription: {e}")
+        return jsonify({"error": "Failed to fetch subscription"}), 500
+
+@auth_bp.route('/subscription/plans', methods=['GET'])
+def get_subscription_plans():
+    """Get available subscription plans"""
+    return jsonify({"plans": SUBSCRIPTION_PLANS}), 200
+
+@auth_bp.route('/subscription/update', methods=['POST'])
+def update_subscription():
+    """Update user subscription"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    try:
+        data = request.get_json()
+        plan_name = data.get('plan')
+        
+        if plan_name not in SUBSCRIPTION_PLANS and plan_name != "None":
+            return jsonify({"error": "Invalid subscription plan"}), 400
+        
+        # Update the client's premium field in the database
+        client = Client.query.get(user_id)
+        if not client:
+            return jsonify({"error": "Client not found"}), 404
+            
+        client.premium = plan_name
+        db.session.commit()
+        
+        return jsonify({
+            "message": f"Subscription updated to {plan_name}",
+            "plan": plan_name,
+            "status": "active" if plan_name != "None" else "inactive"
+        }), 200
+        
+    except Exception as e:
+        print(f"Error updating subscription: {e}")
+        db.session.rollback()
+        return jsonify({"error": "Failed to update subscription"}), 500
+
+@auth_bp.route('/subscription/cancel', methods=['POST'])
+def cancel_subscription():
+    """Cancel user subscription"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    try:
+        # Update the client's premium field to "None" to cancel subscription
+        client = Client.query.get(user_id)
+        if not client:
+            return jsonify({"error": "Client not found"}), 404
+            
+        client.premium = "None"
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Subscription cancelled successfully",
+            "status": "cancelled"
+        }), 200
+        
+    except Exception as e:
+        print(f"Error cancelling subscription: {e}")
+        db.session.rollback()
+        return jsonify({"error": "Failed to cancel subscription"}), 500
+
+@auth_bp.route('/subscription/usage', methods=['POST'])
+def track_subscription_usage():
+    """Track subscription usage for a booking"""
+    try:
+        data = request.get_json()
+        
+        # For now, just return success
+        # In production, you'd track usage in database
+        
+        return jsonify({
+            "message": "Usage tracked successfully",
+            "client_id": data.get('client_id'),
+            "booking_id": data.get('booking_id'),
+            "service_amount": data.get('service_amount'),
+            "discount_applied": data.get('discount_applied')
+        }), 200
+        
+    except Exception as e:
+        print(f"Error tracking usage: {e}")
+        return jsonify({"error": "Failed to track usage"}), 500
+
+@auth_bp.route('/business/<int:user_id>', methods=['GET'])
+def get_user_business(user_id):
+    """Get business account information for a user"""
+    try:
+        business_data = get_user_business_data(user_id)
+        return jsonify(business_data), 200
+    except Exception as e:
+        print(f"Error fetching business data: {e}")
+        return jsonify({"error": "Failed to fetch business data"}), 500
+
+@auth_bp.route('/business', methods=['GET'])
+def get_current_user_business():
+    """Get business account for currently logged in user"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    try:
+        business_data = get_user_business_data(user_id)
+        return jsonify(business_data), 200
+    except Exception as e:
+        print(f"Error fetching business data: {e}")
+        return jsonify({"error": "Failed to fetch business data"}), 500
+
+@auth_bp.route('/business/update', methods=['POST'])
+def update_business_account():
+    """Update business account information"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    try:
+        data = request.get_json()
+        
+        # For now, just return success
+        # In production, you'd update the database
+        
+        return jsonify({
+            "message": "Business account updated successfully",
+            "isBusinessAccount": data.get('isBusinessAccount', False),
+            "companyName": data.get('companyName', '')
+        }), 200
+        
+    except Exception as e:
+        print(f"Error updating business account: {e}")
+        return jsonify({"error": "Failed to update business account"}), 500
+
+
 # ========== SYSTEM SETTINGS ENDPOINTS ==========
 
 @auth_bp.route('/admin/settings', methods=['GET'])
@@ -1313,6 +1467,7 @@ def export_system_settings():
         print(f"Error exporting settings: {e}")
         return jsonify({"error": "Failed to export settings"}), 500
 
+
 # ========== BACKUP MANAGEMENT ENDPOINTS ==========
 
 @auth_bp.route('/admin/backups/list', methods=['GET'])
@@ -1421,3 +1576,82 @@ def system_reset():
     except Exception as e:
         print(f"Error resetting system: {e}")
         return jsonify({"error": "Failed to reset system"}), 500
+
+
+#========== SCHIRMER'S NOTARY SPECIFIC ==========
+
+@auth_bp.route('/office/info', methods=['GET'])
+def get_office_info():
+    try:
+        office = SchirmersNotary.query.first()
+        
+        if not office:
+            return jsonify({
+                "No office records found. Please set up office information.",
+            }), 200
+        
+        office_data = {
+            "id": office.id,
+            "address": office.address,
+            "phone": office.phone,
+            "email": office.email,
+            "office_start": getattr(office, 'office_start', '09:00'),
+            "office_end": getattr(office, 'office_end', '17:00'),
+            "available_days": getattr(office, 'available_days', 'Monday,Tuesday,Wednesday,Thursday,Friday')
+        }
+        
+        return jsonify(office_data), 200
+    
+    except Exception as e:
+        print(f"Error fetching office info: {e}")
+        return jsonify({"error": "Failed to fetch office info"}), 500
+
+@auth_bp.route('/office/update', methods=['POST'])
+def update_office_info():
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({"error": "CEO access required"}), 403
+    
+    try:
+        office = SchirmersNotary.query.first()
+        
+        if not office:
+            office = SchirmersNotary()
+            db.session.add(office)
+        
+        data = request.get_json()
+        
+        if 'address' in data:
+            office.address = data['address']
+        if 'phone' in data:
+            office.phone = data['phone']
+        if 'email' in data:
+            office.email = data['email']
+        if 'office_start' in data:
+            office.office_start = data['office_start']
+        if 'office_end' in data:
+            office.office_end = data['office_end']
+        if 'available_days' in data:
+            office.available_days = data['available_days']
+            
+        db.session.commit()
+        
+        updated_data = {
+            "id": office.id,
+            "address": office.address,
+            "phone": office.phone,
+            "email": office.email,
+            "office_start": office.office_start,
+            "office_end": office.office_end,
+            "available_days": office.available_days
+        }
+        
+        return jsonify({
+            "message": "Office info updated successfully",
+            "office": updated_data
+        }), 200
+    
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating office info: {e}")
+        return jsonify({"error": "Failed to update office info"}), 500
