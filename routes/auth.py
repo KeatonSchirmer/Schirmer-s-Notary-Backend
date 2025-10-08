@@ -3,7 +3,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from database.db import db
 from models.accounts import Admin, Client, SchirmersNotary
 from models.bookings import Booking
-from models.system import SystemSetting, Backup
+from models.system import SystemSetting, Backup, Service, Subscription
+
 import datetime
 import random
 import string
@@ -166,7 +167,7 @@ def get_user_subscription_data(user_id):
             "status": "inactive",
             "features": []
         }
-
+    
 def get_user_business_data(user_id):
     """Get business account data for a user"""
     try:
@@ -316,8 +317,7 @@ def view_profile():
             "company": user.company,
             "two_factor_enabled": user.two_factor_enabled
         })
-    else:
-        return jsonify({"message": "Unknown user type"}), 400
+    else: return jsonify({"message": "Unknown user type"}), 400
 
 @auth_bp.route('/profile/update', methods=['PATCH'])
 def update_profile():
@@ -370,7 +370,7 @@ def update_profile():
         db.session.commit()
         return jsonify({"message": "Profile updated successfully"}), 200
     except Exception as e:
-        traceback.print_exc()
+        traceback.print_exc() 
         return jsonify({"error": str(e)}), 
 
 @auth_bp.route('/twofa/request', methods=['POST'])
@@ -772,7 +772,7 @@ def delete_direct_deposit_info():
 @auth_bp.route('/admin/stats', methods=['GET'])
 def get_admin_stats():
     """Get database statistics for Master Controls dashboard"""
-    admin_id = require_admin()
+    admin_id = require_ceo()
     if not admin_id:
         return jsonify({"error": "Admin access required"}), 403
     
@@ -811,7 +811,7 @@ def get_admin_stats():
 @auth_bp.route('/admin/admins/all', methods=['GET'])
 def get_all_admins():
     """Get all admin users for employee management"""
-    admin_id = require_admin()
+    admin_id = require_ceo()
     if not admin_id:
         return jsonify({"error": "Admin access required"}), 403
     
@@ -851,7 +851,7 @@ def get_all_admins():
 @auth_bp.route('/admin/admins/create', methods=['POST'])
 def create_admin():
     """Create new admin user via Master Controls"""
-    admin_id = require_admin()
+    admin_id = require_ceo()
     if not admin_id:
         return jsonify({"error": "Admin access required"}), 403
     
@@ -908,7 +908,7 @@ def create_admin():
 @auth_bp.route('/admin/admins/<int:admin_id>', methods=['PUT'])
 def update_admin(admin_id):
     """Update admin user via Master Controls"""
-    current_admin_id = require_admin()
+    current_admin_id = require_ceo()
     if not current_admin_id:
         return jsonify({"error": "Admin access required"}), 403
     
@@ -961,7 +961,7 @@ def update_admin(admin_id):
 @auth_bp.route('/admin/admins/<int:admin_id>', methods=['DELETE'])
 def delete_admin(admin_id):
     """Delete admin user via Master Controls"""
-    current_admin_id = require_admin()
+    current_admin_id = require_ceo()
     if not current_admin_id:
         return jsonify({"error": "Admin access required"}), 403
     
@@ -987,7 +987,7 @@ def delete_admin(admin_id):
 @auth_bp.route('/admin/admins/<int:admin_id>/resend-invitation', methods=['POST'])
 def resend_admin_invitation(admin_id):
     """Resend invitation email to admin"""
-    current_admin_id = require_admin()
+    current_admin_id = require_ceo()
     if not current_admin_id:
         return jsonify({"error": "Admin access required"}), 403
     
@@ -1445,7 +1445,7 @@ def export_system_settings():
 
 @auth_bp.route('/admin/backups/list', methods=['GET'])
 def get_backup_history():
-    admin_id = require_admin()
+    admin_id = require_ceo()
     if not admin_id:
         return jsonify({"error": "Admin access required"}), 403
     backups = Backup.query.all()
@@ -1587,3 +1587,122 @@ def update_office_info():
         db.session.rollback()
         print(f"Error updating office info: {e}")
         return jsonify({"error": "Failed to update office info"}), 500
+
+
+# ========== SERVICE MANAGEMENT ENDPOINTS ===========
+
+@auth_bp.route('/admin/services', methods=['GET'])
+def get_services():
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    services = Service.query.all()
+    return jsonify({'services': [
+        {
+            'id': s.id,
+            'name': s.name,
+            'description': s.description,
+            'price': s.price
+        } for s in services
+    ]})
+
+@auth_bp.route('/admin/services', methods=['POST'])
+def create_service():
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.get_json()
+    service = Service(
+        name=data.get('name'),
+        description=data.get('description'),
+        price=float(data.get('price', 0))
+    )
+    db.session.add(service)
+    db.session.commit()
+    return jsonify({'message': 'Service created', 'id': service.id})
+
+@auth_bp.route('/admin/services/<int:service_id>', methods=['PUT'])
+def update_service(service_id):
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    service = Service.query.get(service_id)
+    if not service:
+        return jsonify({'error': 'Service not found'}), 404
+    data = request.get_json()
+    service.name = data.get('name', service.name)
+    service.description = data.get('description', service.description)
+    service.price = float(data.get('price', service.price))
+    db.session.commit()
+    return jsonify({'message': 'Service updated'})
+
+@auth_bp.route('/admin/services/<int:service_id>', methods=['DELETE'])
+def delete_service(service_id):
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    service = Service.query.get(service_id)
+    if not service:
+        return jsonify({'error': 'Service not found'}), 404
+    db.session.delete(service)
+    db.session.commit()
+    return jsonify({'message': 'Service deleted'})
+
+# ========== SUBSCRIPTION MANAGEMENT ENDPOINTS ===========
+
+@auth_bp.route('/admin/subscriptions', methods=['GET'])
+def get_subscriptions():
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    subs = Subscription.query.all()
+    return jsonify({'subscriptions': [
+        {
+            'id': s.id,
+            'name': s.name,
+            'benefits': s.benefits,
+            'price': s.price
+        } for s in subs
+    ]})
+
+@auth_bp.route('/admin/subscriptions', methods=['POST'])
+def create_subscription():
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.get_json()
+    sub = Subscription(
+        name=data.get('name'),
+        benefits=data.get('benefits'),
+        price=float(data.get('price', 0))
+    )
+    db.session.add(sub)
+    db.session.commit()
+    return jsonify({'message': 'Subscription created', 'id': sub.id})
+
+@auth_bp.route('/admin/subscriptions/<int:sub_id>', methods=['PUT'])
+def update_subscription(sub_id):
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    sub = Subscription.query.get(sub_id)
+    if not sub:
+        return jsonify({'error': 'Subscription not found'}), 404
+    data = request.get_json()
+    sub.name = data.get('name', sub.name)
+    sub.benefits = data.get('benefits', sub.benefits)
+    sub.price = float(data.get('price', sub.price))
+    db.session.commit()
+    return jsonify({'message': 'Subscription updated'})
+
+@auth_bp.route('/admin/subscriptions/<int:sub_id>', methods=['DELETE'])
+def delete_subscription(sub_id):
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    sub = Subscription.query.get(sub_id)
+    if not sub:
+        return jsonify({'error': 'Subscription not found'}), 404
+    db.session.delete(sub)
+    db.session.commit()
+    return jsonify({'message': 'Subscription deleted'})

@@ -78,6 +78,7 @@ class SchirmersNotary(db.Model):
     __tablename__ = "schirmersnotary"
 
     id = db.Column(db.Integer, primary_key=True)
+    ceo_admin_id = db.Column(db.Integer, db.ForeignKey('admin.id'), nullable=True)
     address = db.Column(db.String(255))
     phone = db.Column(db.String(20))
     email = db.Column(db.String(120), unique=True)
