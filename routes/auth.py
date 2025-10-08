@@ -105,13 +105,15 @@ def require_ceo():
     if not user_type:
         admin_user = Admin.query.get(user_id)
         if admin_user:
+            user_type = 'admin'
             user_id = 1
             print(f"[require_ceo] Found admin, setting user_type=admin, user_id=1")
         else:
             print(f"[require_ceo] No admin found for user_id {user_id}")
             return None
+    # Now user_type is guaranteed to be set
     if user_type != 'admin':
-        print(f"[require_ceo] user_type {user_type} is not admin")
+        print(f"[require_ceo] user_type {user_type} is not admin after assignment")
         return None
     ceo_record = SchirmersNotary.query.first()
     print(f"[require_ceo] ceo_record: {ceo_record}")
