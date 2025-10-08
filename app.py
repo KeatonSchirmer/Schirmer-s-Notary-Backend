@@ -41,15 +41,21 @@ app = Flask(__name__)
 
 start_scheduler(app)
 
+# Configure CORS with environment-specific origins
+allowed_origins = os.environ.get('ALLOWED_ORIGINS', '*').split(',')
 CORS(app, 
      supports_credentials=True, 
-     resources={r"/*": {"origins": "*"}}, 
+     resources={r"/*": {"origins": allowed_origins}}, 
      allow_headers=["Content-Type", "Authorization", "x-user-id", "X-User-Id"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
 )
 
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 if not app.config['SECRET_KEY']:
     raise ValueError("SECRET_KEY environment variable is required")

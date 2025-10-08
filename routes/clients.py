@@ -3,6 +3,7 @@ from database.db import db
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import smtplib
+import os
 from models.accounts import Client
 from models.bookings import Booking
 
@@ -207,16 +208,19 @@ def send_contact_email():
         if not client:
             return jsonify({'error': 'Client not found'}), 404
 
-    to_email = 'schirmer.nikolas@gmail.com'
+    to_email = os.environ.get('CONTACT_EMAIL', 'schirmer.nikolas@gmail.com')
     subject = f'New Contact Message from {name}'
     body = f"Name: {name}\nEmail: {email}\nMessage:\n{message}"
     if client:
         body += f"\n\nLinked Client ID: {client.id}\nClient Name: {client.name}\nClient Email: {client.email}"
 
-    smtp_server = 'smtp.gmail.com'
-    smtp_port = 587
-    smtp_user = 'schirmer.nikolas@gmail.com'
-    smtp_pass = 'cgyqzlbjwrftwqok'
+    smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+    smtp_port = int(os.environ.get('SMTP_PORT', '587'))
+    smtp_user = os.environ.get('SMTP_USERNAME')
+    smtp_pass = os.environ.get('SMTP_PASSWORD')
+
+    if not smtp_user or not smtp_pass:
+        return jsonify({'error': 'Email service not configured'}), 500
 
     msg = MIMEMultipart()
     msg['From'] = smtp_user
