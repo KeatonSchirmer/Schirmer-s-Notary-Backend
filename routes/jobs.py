@@ -195,6 +195,11 @@ def deny_booking(booking_id):
     db.session.commit()
     return jsonify({"message": "Booking denied", "id": booking.id}), 200
 
+@jobs_bp.route('/<int:booking_id>/decline', methods=['POST'])
+def decline_booking(booking_id):
+    """Alternative endpoint for declining bookings (same as deny)"""
+    return deny_booking(booking_id)
+
 @jobs_bp.route('/<int:booking_id>/complete', methods=['POST'])
 def complete_booking(booking_id):
     booking = Booking.query.get_or_404(booking_id)
@@ -377,6 +382,47 @@ def create_booking():
 @jobs_bp.route('/client/request', methods=['POST'])  
 def client_request_booking():
     """Client-specific booking request endpoint"""
-    return request_booking() 
+    return request_booking()
+
+@jobs_bp.route('/company/requests/<company_name>', methods=['GET'])
+def get_company_requests(company_name):
+    """Get all requests for a specific company"""
+    try:
+        # Find all clients with matching company
+        clients = Client.query.filter(
+            Client.company.ilike(f'%{company_name}%')
+        ).all()
+        
+        client_ids = [client.id for client in clients]
+        
+        # Get all bookings for these clients
+        bookings = Booking.query.filter(
+            Booking.client_id.in_(client_ids)
+        ).all()
+        
+        requests_data = []
+        for booking in bookings:
+            requests_data.append({
+                'id': booking.id,
+                'client_id': booking.client_id,
+                'service': booking.service,
+                'status': booking.status,
+                'date': booking.date,
+                'time': booking.time,
+                'location': booking.location,
+                'document_type': booking.service,  # For compatibility
+                'urgency': booking.urgency,
+                'notes': booking.notes
+            })
+        
+        return jsonify({
+            'requests': requests_data,
+            'company': company_name,
+            'total_requests': len(requests_data)
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching company requests: {e}")
+        return jsonify({'error': 'Failed to fetch company requests', 'requests': []}), 500
 
    

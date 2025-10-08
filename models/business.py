@@ -2,6 +2,7 @@ from datetime import datetime
 from sqlalchemy import Numeric, Enum
 from database.db import db
 from utils.encrypt import encryption_manager
+import uuid
 
 class Finance(db.Model):
     __tablename__ = "finances"
@@ -22,6 +23,83 @@ class Finance(db.Model):
             "amount": float(self.amount) if self.amount is not None else None,
             "date": self.date.strftime("%Y-%m-%d") if self.date else "",
             "booking_id": self.booking_id
+        }
+
+class Invoice:
+    def __init__(self, **kwargs):
+        self.invoice_id = str(uuid.uuid4())
+        self.booking_id = kwargs.get('booking_id')
+        self.client_id = kwargs.get('client_id')
+        self.client_name = kwargs.get('client_name')
+        self.client_email = kwargs.get('client_email')
+        self.service_type = kwargs.get('service_type')
+        self.service_date = kwargs.get('service_date')
+        self.service_time = kwargs.get('service_time')
+        self.service_location = kwargs.get('service_location')
+        self.base_price = kwargs.get('base_price', 0)
+        self.travel_fee = kwargs.get('travel_fee', 0)
+        self.extra_signers_fee = kwargs.get('extra_signers_fee', 0)
+        self.extra_documents_fee = kwargs.get('extra_documents_fee', 0)
+        self.rush_fee = kwargs.get('rush_fee', 0)
+        self.subtotal = kwargs.get('subtotal', 0)
+        self.subscription_plan = kwargs.get('subscription_plan')
+        self.subscription_discount_percentage = kwargs.get('subscription_discount_percentage', 0)
+        self.subscription_discount_amount = kwargs.get('subscription_discount_amount', 0)
+        self.total_amount = kwargs.get('total_amount', 0)
+        self.payment_method = kwargs.get('payment_method')
+        self.payment_status = kwargs.get('payment_status', 'pending')
+        self.document_count = kwargs.get('document_count', 1)
+        self.signer_count = kwargs.get('signer_count', 1)
+        self.urgency = kwargs.get('urgency', 'normal')
+        self.distance_miles = kwargs.get('distance_miles')
+        self.is_business_account = kwargs.get('is_business_account', False)
+        self.po_number = kwargs.get('po_number')
+        self.cost_center = kwargs.get('cost_center')
+        self.department = kwargs.get('department')
+        self.invoice_date = kwargs.get('invoice_date', datetime.now().isoformat())
+        self.due_date = kwargs.get('due_date')
+        self.status = kwargs.get('status', 'pending')
+
+    def to_dict(self):
+        return {
+            "invoice_id": self.invoice_id,
+            "booking_id": self.booking_id,
+            "client_id": self.client_id,
+            "client_name": self.client_name,
+            "client_email": self.client_email,
+            "service_type": self.service_type,
+            "service_date": self.service_date,
+            "service_time": self.service_time,
+            "service_location": self.service_location,
+            "pricing": {
+                "base_price": self.base_price,
+                "travel_fee": self.travel_fee,
+                "extra_signers_fee": self.extra_signers_fee,
+                "extra_documents_fee": self.extra_documents_fee,
+                "rush_fee": self.rush_fee,
+                "subtotal": self.subtotal
+            },
+            "subscription": {
+                "plan": self.subscription_plan,
+                "discount_percentage": self.subscription_discount_percentage,
+                "discount_amount": self.subscription_discount_amount
+            },
+            "total_amount": self.total_amount,
+            "payment_method": self.payment_method,
+            "payment_status": self.payment_status,
+            "document_count": self.document_count,
+            "signer_count": self.signer_count,
+            "urgency": self.urgency,
+            "distance_miles": self.distance_miles,
+            "business_info": {
+                "is_business_account": self.is_business_account,
+                "po_number": self.po_number,
+                "cost_center": self.cost_center,
+                "department": self.department
+            },
+            "invoice_date": self.invoice_date,
+            "due_date": self.due_date,
+            "status": self.status
         }
 
 class Mileage(db.Model):

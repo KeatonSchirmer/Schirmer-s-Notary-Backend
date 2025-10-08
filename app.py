@@ -68,10 +68,30 @@ def index():
 
 @app.route('/session', methods=['GET'])
 def get_session():
+    user_id = session.get("user_id")
+    user_type = session.get("user_type")
+    username = session.get("username")
+    
+    # If we have a user_id, fetch their current data
+    if user_id and user_type:
+        try:
+            from models.accounts import Admin, Client
+            if user_type == 'admin':
+                user = Admin.query.get(user_id)
+                if user:
+                    username = user.name
+            elif user_type == 'client':
+                user = Client.query.get(user_id)
+                if user:
+                    username = user.name
+        except Exception as e:
+            print(f"Error fetching user data in session: {e}")
+    
     return jsonify({
-        "user_id": session.get("user_id"),
-        "user_type": session.get("user_type"),
-        "username": session.get("username")
+        "user_id": user_id,
+        "user_type": user_type,
+        "username": username,
+        "logged_in": bool(user_id)
     })
 
 @app.route('/api/save-push-token', methods=['POST'])

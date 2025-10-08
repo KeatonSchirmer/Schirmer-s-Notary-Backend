@@ -6,7 +6,7 @@ import smtplib
 from models.accounts import Client
 from models.bookings import Booking
 
-clients_bp = Blueprint('contacts', __name__)
+clients_bp = Blueprint('clients', __name__)
 
 def serialize_company(company):
     if not company:
@@ -160,6 +160,35 @@ def delete_client(client_id):
     db.session.delete(client)
     db.session.commit()
     return jsonify({'message': 'Contact deleted successfully.'}), 200
+
+@clients_bp.route('/company/<company_name>', methods=['GET'])
+def get_clients_by_company(company_name):
+    """Get all clients for a specific company"""
+    try:
+        clients = Client.query.filter(
+            Client.company.ilike(f'%{company_name}%')
+        ).all()
+        
+        clients_data = []
+        for client in clients:
+            clients_data.append({
+                'id': client.id,
+                'name': client.name,
+                'email': client.email,
+                'phone': client.phone,
+                'address': client.address,
+                'company': client.company
+            })
+        
+        return jsonify({
+            'clients': clients_data,
+            'company': company_name,
+            'total_clients': len(clients_data)
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching company clients: {e}")
+        return jsonify({'error': 'Failed to fetch company clients', 'clients': []}), 500
 
 @clients_bp.route('/contact', methods=['POST'])
 def send_contact_email():

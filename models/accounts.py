@@ -9,8 +9,8 @@ class Admin(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     address = db.Column(db.String(255))
     license_number = db.Column(db.String(100))
-    license_expiration = db.Column(db.String(20))
-    password_hash = db.Column(db.String(255), nullable=False)
+    license_expiration = db.Column(db.Date)
+    password_hash = db.Column(db.String(255), nullable=True)
     two_factor_enabled = db.Column(db.Boolean, default=False)
     two_factor_code = db.Column(db.String(12))
     two_factor_code_created = db.Column(db.DateTime)
@@ -20,6 +20,17 @@ class Admin(db.Model):
     google_refresh_token = db.Column(db.Text) 
     google_token_expires = db.Column(db.DateTime)
     google_calendar_connected = db.Column(db.Boolean, default=False)
+    
+    employment_type = db.Column(db.Enum("full_time", "part_time", "contractor", name="employment_type"), default="full_time")
+    salary = db.Column(db.Numeric(10, 2), default=0.0)
+    hourly_rate = db.Column(db.Numeric(8, 2), default=0.0)
+    hours_per_week = db.Column(db.Integer, default=40)
+    pay_period_start = db.Column(db.String(10))
+    pay_period_end = db.Column(db.String(10))
+    availability = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    account_status = db.Column(db.Enum("pending", "confirmed", "suspended", name="account_status"), default="pending")
 
 
     def __repr__(self):
