@@ -4,7 +4,6 @@ from database.db import db
 from models.accounts import Admin, Client, SchirmersNotary
 from models.bookings import Booking
 from models.system import SystemSetting, Backup, Service, Subscription
-
 import datetime
 import random
 import string
@@ -1237,13 +1236,14 @@ def get_current_user_subscription():
         print(f"Error fetching subscription: {e}")
         return jsonify({"error": "Failed to fetch subscription"}), 500
 
+#TODO: Integrate with subscription plans from database
 @auth_bp.route('/subscription/plans', methods=['GET'])
 def get_subscription_plans():
     """Get available subscription plans"""
     return jsonify({"plans": SUBSCRIPTION_PLANS}), 200
 
 @auth_bp.route('/subscription/update', methods=['POST'])
-def update_subscription():
+def update_client_subscription():
     """Update user subscription"""
     user_id = session.get('user_id')
     if not user_id:
