@@ -192,9 +192,9 @@ def square_webhook_receiver():
 
 @square_bp.route('/create-customer', methods=['POST'])
 def create_customer():
-    data = request.get_json()
+    data = request.get_json() or {}
     try: 
-        result = client.customers.create(
+        result = client.customers.create_customer(
             body={
                 "given_name": data.get('given_name'),
                 "family_name": data.get('family_name'),
@@ -207,48 +207,52 @@ def create_customer():
             }
         )
         if result.is_success():
-            return jsonify(result.body)
+            return jsonify(result.body), 200
         else:
-            return jsonify(result.errors), 400
+            return jsonify({"errors": result.errors}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/list-customers', methods=['GET'])
 def list_customers():
-    return{
-        client.customers.list()
-    }
+    try:
+        result = client.customers.list_customers()
+        if result.is_success():
+            return jsonify(result.body), 200
+        else:
+            return jsonify({"errors": result.errors}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/search-customers', methods=['POST'])
 def search_customers():
-    data = request.get_json()
+    data = request.get_json() or {}
     try:
-        result = client.customers.search(
+        query_filter = {}
+        if data.get('email_address'):
+            query_filter["email_address"] = {"exact": data.get('email_address')}
+        if data.get('reference_id'):
+            query_filter["reference_id"] = {"exact": data.get('reference_id')}
+            
+        result = client.customers.search_customers(
             body={
                 "query": {
-                    "filter": {
-                        "email_address": {
-                            "exact": data.get('email_address')
-                        },
-                        "reference_id": {
-                            "exact": data.get('reference_id')
-                        }
-                   }
+                    "filter": query_filter
                 }
             }
         )
         if result.is_success():
-            return jsonify(result.body)
+            return jsonify(result.body), 200
         else:
-            return jsonify(result.errors), 400
+            return jsonify({"errors": result.errors}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/create-card', methods=['POST'])
 def create_card():
-    data = request.get_json()
+    data = request.get_json() or {}
     try:
-        result = client.cards.create(
+        result = client.cards.create_card(
             body={
                 "card":{
                     "cardholder_name": data.get('cardholder_name'),
@@ -263,97 +267,90 @@ def create_card():
             }
         )
         if result.is_success():
-            return jsonify(result.body)
+            return jsonify(result.body), 200
         else:
-            return jsonify(result.errors), 400
+            return jsonify({"errors": result.errors}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/list-cards', methods=['GET'])
 def list_cards():
-    data = request.get_json()
+    customer_id = request.args.get('customer_id')
     try:
-        result = client.cards.list(
-            body={
-                "customer_id": data.get('customer_id')
-            }
+        result = client.cards.list_cards(
+            customer_id=customer_id
         )
         if result.is_success():
-            return jsonify(result.body)
+            return jsonify(result.body), 200
         else:
-            return jsonify(result.errors), 400
+            return jsonify({"errors": result.errors}), 400
     except Exception as e:
-        return jsonify ({"error": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/list-subscriptions', methods=['GET'])
 def list_subscriptions():
-    data = request.get_json()
     try:
-        result = client.catalog.list(
-            body={
-                "types": 'subscription_plan'
-            }
+        result = client.catalog.list_catalog(
+            types='SUBSCRIPTION_PLAN'
         )
         if result.is_success():
-            return jsonify(result.body)
+            return jsonify(result.body), 200
         else:
-            return jsonify(result.errors),400
+            return jsonify({"errors": result.errors}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/enroll-subscription', methods=['POST'])
 def enroll_customer():
-    data = request.get_json()
+    data = request.get_json() or {}
     try:
-        result = client.subscriptions.create(
+        result = client.subscriptions.create_subscription(
             body={
                 "idempotency_key": data.get('idempotency_key'),
                 "customer_id": data.get('customer_id'),
                 "location_id": 'LQD9966CWR0XF',
                 "card_id": data.get('card_id'),
-                "plan_variant_id": data.get('plan_variant_id')
+                "plan_variation_id": data.get('plan_variant_id')
             }
         )
         if result.is_success():
-            return jsonify(result.body)
+            return jsonify(result.body), 200
         else:
-            return jsonify(result.errors), 400
+            return jsonify({"errors": result.errors}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}),500
+        return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/cancel-subscription', methods=['POST'])
 def cancel_subscription():
-    data = request.get_json()
+    data = request.get_json() or {}
     try:
-        result = client.subscriptions.cancel(
-            body={
-                "subscription_id": data.get('subscription_id')
-            }
+        result = client.subscriptions.cancel_subscription(
+            subscription_id=data.get('subscription_id')
         )
         if result.is_success():
-            return jsonify(result.body)
+            return jsonify(result.body), 200
         else:
-            return jsonify(result.errors), 400
+            return jsonify({"errors": result.errors}), 400
     except Exception as e:
-        return jsonify({"errors": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/search-subscriptions', methods=['POST'])
 def search_subscriptions():
-    data = request.get_json()
+    data = request.get_json() or {}
     try:
-        result = client.subscriptions.search(
+        result = client.subscriptions.search_subscriptions(
             body={
                 "query": {
                     "filter": {
-                        "customer_ids": data.get('customer_ids'),
+                        "customer_ids": data.get('customer_ids', [])
                     }
                 }
             }
         )
         if result.is_success():
-            return jsonify(result.body)
+            return jsonify(result.body), 200
         else:
-            return jsonify(result.errors), 400
+            return jsonify({"errors": result.errors}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
