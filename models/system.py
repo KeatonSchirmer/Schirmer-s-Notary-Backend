@@ -1,5 +1,4 @@
 from database.db import db
-
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text
 
 class SystemSetting(db.Model):
@@ -17,18 +16,40 @@ class Backup(db.Model):
     size = db.Column(db.String(20))
     created_at = db.Column(db.String(30))
     type = db.Column(db.String(20))
-
+ 
 class Service(db.Model):
-    __tablename__ = 'services'
-    id = Column(Integer, primary_key=True)
-    name = Column(String(128), nullable=False)
-    description = Column(Text)
-    price = Column(Float, nullable=False)
+    __tablename__ = "services"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    price = db.Column(db.Numeric(10, 2), nullable=False)
+    active = db.Column(db.Boolean, default=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "price": float(self.price),
+            "active": self.active
+        }
 
 class Subscription(db.Model):
-    __tablename__ = 'subscriptions'
-    id = Column(Integer, primary_key=True)
-    name = Column(String(128), nullable=False)
-    benefits = Column(Text)
-    price = Column(Float, nullable=False)
+    __tablename__ = "subscription"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    price = db.Column(db.Numeric(10, 2), nullable=False)
+    discount_percentage = db.Column(db.Integer, default=0)
+    active = db.Column(db.Boolean, default=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "price": float(self.price),
+            "discount_percentage": self.discount_percentage,
+            "active": self.active
+        }
 

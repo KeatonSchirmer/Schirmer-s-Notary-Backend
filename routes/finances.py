@@ -1,12 +1,22 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, redirect
+import os
 from database.db import db
 from datetime import datetime
 from models.business import Finance, Invoice, Billing
+from models.accounts import Client
 import random
+import uuid
 import string
 import datetime
+import requests
 
 finances_bp = Blueprint('finances', __name__)
+
+BASE_URL = os.environ.get('BASE_PUBLIC_API_URL')
+SQUARE_ACCESS_TOKEN = os.environ.get('SQUARE_ACCESS_TOKEN')
+PAYMENT_SESSIONS = {}
+
+#* ============ Admin Finance Management ============
 
 @finances_bp.route('/', methods=['GET'])
 def get_finances():
@@ -57,6 +67,9 @@ def delete_finance(finance_id):
     db.session.delete(entry)
     db.session.commit()
     return jsonify({"message": "Deleted"})
+
+#* ============ Client Invoicing and Payment =============
+#! May delete this to integrate with Square
 
 @finances_bp.route('/invoice/create', methods=['POST'])
 def create_invoice():
@@ -232,14 +245,21 @@ def get_payment_methods():
             # Check for billing information
             billing = Billing.query.filter_by(client_id=user_id).first()
             if billing and billing.card_number:
-                # Return masked card information
-                payment_methods.append({
+                # Return masked card information and card_on_file_id if available
+                payment_method = {
                     "id": "card_1",
                     "type": "card",
                     "last_four": billing.card_number[-4:] if len(billing.card_number) >= 4 else "****",
                     "expiry": billing.card_expir,
                     "default": True
-                })
+                }
+                # Add Square card_on_file_id if present in billing
+                if hasattr(billing, "card_on_file_id") and billing.card_on_file_id:
+                    payment_method["card_on_file_id"] = billing.card_on_file_id
+                else:
+                    # Placeholder for Square card ID, update as needed
+                    payment_method["card_on_file_id"] = None
+                payment_methods.append(payment_method)
         
         return jsonify({
             "payment_methods": payment_methods,
@@ -272,3 +292,5 @@ def get_payment_history():
     except Exception as e:
         print(f"Error fetching payment history: {e}")
         return jsonify({"error": "Failed to fetch payment history"}), 500
+
+#* ============ Square API =============

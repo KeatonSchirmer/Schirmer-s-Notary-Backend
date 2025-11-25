@@ -138,6 +138,7 @@ class Billing(db.Model):
     _card_number = db.Column('card_number', db.Text)  # Encrypted
     card_expir = db.Column(db.String(5))
     _card_cvv = db.Column('card_cvv', db.Text)  # Encrypted
+    card_on_file_id = db.Column(db.String(100))  # Square card token
 
     @property
     def tax_id(self):
@@ -182,7 +183,8 @@ class Billing(db.Model):
             "payment_method": self.payment_method,
             "card_expir": self.card_expir,
             "card_cvv": "***" if self._card_cvv else None,  # Never expose real CVV
-            "card_number": self.card_number[-4:] if self.card_number else None  # Only last 4 digits
+            "card_number": self.card_number[-4:] if self.card_number else None,  # Only last 4 digits
+            "card_on_file_id": self.card_on_file_id
         }
     
 class DirectDeposit(db.Model):

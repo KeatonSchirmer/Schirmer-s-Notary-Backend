@@ -36,6 +36,37 @@ def send_push_notification(token, title, body):
     except Exception as e:
         print(f"Failed to send push notification: {e}")
 
+def temp_booking_email(name, email, phone, notes):
+    subject = "New Appointment Request"
+    body = f"""New Request from {name},    
+
+A new booking request was made and they are looking for the following services:
+{notes}
+
+If they did not provide enough information their email is {email} and their phone number is {phone}.
+"""
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['From'] = "no-reply@schirmersnotary.com"
+    msg['To'] = email
+
+    smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+    smtp_port = int(os.environ.get('SMTP_PORT', '587'))
+    smtp_username = os.environ.get('SMTP_USERNAME')
+    smtp_password = os.environ.get('SMTP_PASSWORD')
+
+    if not smtp_username or not smtp_password:
+        print("Email credentials not configured")
+        return
+
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_username, smtp_password)
+            server.sendmail(msg['From'], [msg['To']], msg.as_string())
+    except Exception as e:
+        print(f"Failed to send confirmation email: {e}")
+    
 def send_confirmation_email(to_email, name, service, date, time):
     subject = "Booking Confirmation"
     body = f"""Hello {name},
@@ -159,8 +190,17 @@ def request_booking():
                 "New Booking Request",
                 f"{name} submitted a booking for {service} on {date} at {time}."
             )
+    return jsonify({"message": "Booking request submitted successfully", "booking_id": booking.id}), 201
 
-    return jsonify({"message": "Booking request submitted successfully", "id": booking.id}), 201
+@jobs_bp.route('/tempRequest', methods=['POST'])
+def temp_request_booking():
+    data = request.get_json()
+    name = data.get('name')
+    email = data.get('email')
+    phone = data.get('phone')
+    notes = data.get('notes')
+    temp_booking_email(name, email, phone, notes)
+
 
 @jobs_bp.route('/<int:booking_id>', methods=['GET'])
 def get_booking(booking_id):

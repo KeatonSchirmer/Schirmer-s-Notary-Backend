@@ -14,6 +14,9 @@ from database.db import db
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from routes.calendar import sync_google_to_local
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def start_scheduler(app):
     scheduler = BackgroundScheduler()
@@ -132,3 +135,6 @@ app.register_blueprint(calendar_bp, url_prefix='/calendar')
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(mileage_bp, url_prefix="/mileage")
 app.register_blueprint(finances_bp, url_prefix="/finances")
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

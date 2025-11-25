@@ -19,6 +19,8 @@ auth_bp = Blueprint('auth', __name__, template_folder='frontend/templates')
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET') 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
+
+#! Gonna have them saved in database to allow for changing without redeploying
 SUBSCRIPTION_PLANS = {
     "Business": {
         "name": "Business",
@@ -225,7 +227,8 @@ def get_user_business_data(user_id):
             "department": ""
         }
 
-#=========== ADMIN AND CLIENT ================
+
+#* =========== ADMIN AND CLIENT ================
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -579,7 +582,7 @@ def get_user_preferences():
         "timezone": "America/Chicago"
     }), 200
 
-@auth_bp.route('/preferences', methods=['POST'])
+@auth_bp.route('/preferences', methods=['POST']) #TODO Integrate
 def update_user_preferences():
     """Update user preferences"""
     user_id = session.get('user_id')
@@ -640,25 +643,21 @@ def delete_profile():
         return jsonify({"error": "Failed to delete account"}), 500
 
 
-#=========== ADMINS ===============
+#* =========== ADMINS ===============
 
 @auth_bp.route('/direct-deposit/info', methods=['GET'])
 def get_direct_deposit_info():
     user_id = request.headers.get('X-User-Id') or session.get('user_id')
     user_type = session.get('user_type')
     if not user_id:
-        return jsonify({"message": "Not logged in"}), 401
+        return jsonify({"Error": "Not logged in"}), 401
     
     if not user_type:
         admin_user = Admin.query.get(user_id)
         if admin_user:
             user_type = 'admin'
         else:
-            client_user = Client.query.get(user_id)
-            if client_user:
-                user_type = 'client'
-            else:
-                return jsonify({"message": "User not found"}), 404
+            return jsonify({"Error": "User not Admin"}), 404
 
     from models.business import DirectDeposit
     direct_deposit = None
@@ -1013,7 +1012,7 @@ def resend_admin_invitation(admin_id):
         return jsonify({"error": "Failed to resend invitation"}), 500
 
 
-#=========== CLIENTS ================
+#* =========== CLIENTS ================
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
@@ -1163,14 +1162,17 @@ def update_billing_info():
         billing.country = data.get('country', billing.country)
         billing.payment_method = data.get('payment_method', billing.payment_method)
         billing.card_expir = data.get('card_expir', billing.card_expir)
-        
+
         if 'tax_id' in data:
             billing.tax_id = data['tax_id']
         if 'card_number' in data:
             billing.card_number = data['card_number']
         if 'card_cvv' in data:
             billing.card_cvv = data['card_cvv']
-        
+        # Save Square card token if provided
+        if 'card_on_file_id' in data:
+            billing.card_on_file_id = data['card_on_file_id']
+
         db.session.add(billing)
         db.session.commit()
         return jsonify({"message": "Billing info updated successfully"}), 200
@@ -1241,8 +1243,7 @@ def get_current_user_subscription():
         print(f"Error fetching subscription: {e}")
         return jsonify({"error": "Failed to fetch subscription"}), 500
 
-#TODO: Integrate with subscription plans from database
-@auth_bp.route('/subscription/plans', methods=['GET'])
+@auth_bp.route('/subscription/plans', methods=['GET']) #TODO: Integrate with subscription plans from database
 def get_subscription_plans():
     """Get available subscription plans"""
     return jsonify({"plans": SUBSCRIPTION_PLANS}), 200
@@ -1306,7 +1307,7 @@ def cancel_subscription():
         db.session.rollback()
         return jsonify({"error": "Failed to cancel subscription"}), 500
 
-@auth_bp.route('/subscription/usage', methods=['POST'])
+@auth_bp.route('/subscription/usage', methods=['POST']) #TODO: Integrate
 def track_subscription_usage():
     """Track subscription usage for a booking"""
     try:
@@ -1327,6 +1328,7 @@ def track_subscription_usage():
         print(f"Error tracking usage: {e}")
         return jsonify({"error": "Failed to track usage"}), 500
 
+#! =========== May Not Need These ===========
 @auth_bp.route('/business/<int:user_id>', methods=['GET'])
 def get_user_business(user_id):
     """Get business account information for a user"""
@@ -1351,7 +1353,7 @@ def get_current_user_business():
         print(f"Error fetching business data: {e}")
         return jsonify({"error": "Failed to fetch business data"}), 500
 
-@auth_bp.route('/business/update', methods=['POST'])
+@auth_bp.route('/business/update', methods=['POST']) #TODO: Integrate
 def update_business_account():
     """Update business account information"""
     user_id = session.get('user_id')
@@ -1375,7 +1377,7 @@ def update_business_account():
         return jsonify({"error": "Failed to update business account"}), 500
 
 
-# ========== SYSTEM SETTINGS ENDPOINTS ==========
+#* ========== SYSTEM SETTINGS ENDPOINTS ==========
 
 @auth_bp.route('/admin/settings', methods=['GET'])
 def get_system_settings():
@@ -1446,7 +1448,7 @@ def export_system_settings():
     }
     return jsonify(export), 200
 
-# ========== BACKUP MANAGEMENT ENDPOINTS ===========
+#* ========== BACKUP MANAGEMENT ENDPOINTS ===========
 
 @auth_bp.route('/admin/backups/list', methods=['GET'])
 def get_backup_history():
@@ -1516,7 +1518,7 @@ def system_reset():
     return jsonify({"message": "System reset to defaults"}), 200
 
 
-#========== SCHIRMER'S NOTARY SPECIFIC ==========
+#* ========== SCHIRMER'S NOTARY SPECIFIC ==========
 
 @auth_bp.route('/office/info', methods=['GET'])
 def get_office_info():
@@ -1533,9 +1535,10 @@ def get_office_info():
             "address": office.address,
             "phone": office.phone,
             "email": office.email,
-            "office_start": getattr(office, 'office_start', '09:00'),
-            "office_end": getattr(office, 'office_end', '17:00'),
-            "available_days": getattr(office, 'available_days', 'Monday,Tuesday,Wednesday,Thursday,Friday')
+            "office_start": office.office_start,
+            "office_end": office.office_end,
+            #"available_days": getattr(office, 'available_days', [])
+            "available_days": office.available_days_json
         }
         
         return jsonify(office_data), 200
@@ -1595,9 +1598,9 @@ def update_office_info():
         return jsonify({"error": "Failed to update office info"}), 500
 
 
-# ========== SERVICE MANAGEMENT ENDPOINTS ===========
+#* ========== SERVICE MANAGEMENT ENDPOINTS ===========
 
-@auth_bp.route('/admin/services', methods=['GET'])
+@auth_bp.route('/admin/services', methods=['GET']) #TODO: Change access requirment as these may be public facing
 def get_services():
     admin_id = require_ceo()
     if not admin_id:
@@ -1654,9 +1657,9 @@ def delete_service(service_id):
     db.session.commit()
     return jsonify({'message': 'Service deleted'})
 
-# ========== SUBSCRIPTION MANAGEMENT ENDPOINTS ===========
+#* ========== SUBSCRIPTION MANAGEMENT ENDPOINTS ===========
 
-@auth_bp.route('/admin/subscriptions', methods=['GET'])
+@auth_bp.route('/admin/subscriptions', methods=['GET']) #TODO: Change access requirment as these may be public facing
 def get_subscriptions():
     admin_id = require_ceo()
     if not admin_id:
