@@ -3,7 +3,7 @@ import threading
 import time
 import logging
 import requests
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
 from square import Square
 
 square_bp = Blueprint('square', __name__)
@@ -13,7 +13,6 @@ client = Square(
     environment='PRODUCTION',
     token = os.environ.get("SQUARE_ACCESS_TOKEN", "")
 )
-data = request.get_json()
 
 #* Switching the following to be created on the frontend
 # Update Customer
