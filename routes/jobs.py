@@ -41,6 +41,7 @@ def temp_booking_email(name, email, phone, notes):
     body = f"""New Request from {name},    
 
 A new booking request was made and they are looking for the following services:
+
 {notes}
 
 If they did not provide enough information their email is {email} and their phone number is {phone}.
@@ -48,7 +49,7 @@ If they did not provide enough information their email is {email} and their phon
     msg = MIMEText(body)
     msg['Subject'] = subject
     msg['From'] = "no-reply@schirmersnotary.com"
-    msg['To'] = email
+    msg['To'] = 'schirmer.nikolas@gmail.com'
 
     smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
     smtp_port = int(os.environ.get('SMTP_PORT', '587'))
@@ -199,8 +200,13 @@ def temp_request_booking():
     email = data.get('email')
     phone = data.get('phone')
     notes = data.get('notes')
-    temp_booking_email(name, email, phone, notes)
 
+    try:
+        temp_booking_email(name, email, phone, notes)
+        return jsonify({"message": "Appointment requested, please lookout for response email."}), 200
+    except Exception as e:
+        print(f"Error in temp booking request: {e}")
+        return jsonify({"error": "Failed to send appointment request"}), 500
 
 @jobs_bp.route('/<int:booking_id>', methods=['GET'])
 def get_booking(booking_id):
