@@ -12,8 +12,6 @@ logger = logging.getLogger("square_poll")
 client = Square(
     environment='PRODUCTION',
     token = os.environ.get("SQUARE_ACCESS_TOKEN", "")
-    # Sandbox token='EAAAl4-6VQlHPpCSNplN_seZPDTnbdbOj5oQz0mqHyo6Yz4r0eeggqWlg0Vn2REp'
-    # Production token='EAAAl-v8bDwjvNtJx8dLCZtFfbkkEJk9O-B9ETDsLk2tkpN5d8MaGZ_3HJf0McsR'
 )
 data = request.get_json()
 
@@ -195,88 +193,170 @@ def square_webhook_receiver():
 
 @square_bp.route('/create-customer', methods=['POST'])
 def create_customer():
-    client.customers.create(
-        given_name = data.get('given_name'),
-        family_name = data.get('family_name'),
-        email_address = data.get('email_address'),
-        phone_number = data.get('phone_number'),
-        address = data.get('address'),
-        reference_id = data.get('reference_id'),
-        note = data.get('note'),
-        idempotency_key = data.get('idempotency_key')
-    )
+    data = request.get_json()
+    try: 
+        result = client.customers.create(
+            body={
+                "given_name": data.get('given_name'),
+                "family_name": data.get('family_name'),
+                "email_address": data.get('email_address'),
+                "phone_number": data.get('phone_number'),
+                "address": data.get('address'),
+                "reference_id": data.get('reference_id'),
+                "note": data.get('note'),
+                "idempotency_key": data.get('idempotency_key')
+            }
+        )
+        if result.is_success():
+            return jsonify(result.body)
+        else:
+            return jsonify(result.errors), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/list-customers', methods=['GET'])
 def list_customers():
-    client.customers.list()
+    return{
+        client.customers.list()
+    }
 
 @square_bp.route('/search-customers', methods=['POST'])
 def search_customers():
-    client.customers.search(
-        query = {
-            "filter": {
-                "email_address": {
-                    "exact": data.get('email_address')
-                },
-                "reference_id": {
-                    "exact": data.get('reference_id')
+    data = request.get_json()
+    try:
+        result = client.customers.search(
+            body={
+                "query": {
+                    "filter": {
+                        "email_address": {
+                            "exact": data.get('email_address')
+                        },
+                        "reference_id": {
+                            "exact": data.get('reference_id')
+                        }
+                   }
                 }
             }
-        }
-    )
+        )
+        if result.is_success():
+            return jsonify(result.body)
+        else:
+            return jsonify(result.errors), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/create-card', methods=['POST'])
 def create_card():
-    client.cards.create(
-        card={
-            "cardholder_name": data.get('cardholder_name'),
-            "customer_id": data.get('customer_id'),
-            "exp_month": data.get('exp_month'),
-            "exp_year": data.get('exp_year'),
-            "reference_id": data.get('reference_id'),
-            "billing_address": data.get('billing_address')
-        },
-        idempotency_key = data.get('idempotency_key'),
-        source_id = data.get('source_id')
-    )
+    data = request.get_json()
+    try:
+        result = client.cards.create(
+            body={
+                "card":{
+                    "cardholder_name": data.get('cardholder_name'),
+                    "customer_id": data.get('customer_id'),
+                    "exp_month": data.get('exp_month'),
+                    "exp_year": data.get('exp_year'),
+                    "reference_id": data.get('reference_id'),
+                    "billing_address": data.get('billing_address')
+                },
+                "idempotency_key": data.get('idempotency_key'),
+                "source_id": data.get('source_id')
+            }
+        )
+        if result.is_success():
+            return jsonify(result.body)
+        else:
+            return jsonify(result.errors), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/list-cards', methods=['GET'])
 def list_cards():
-    client.cards.list(
-        customer_id = data.get('customer_id')
-    )
+    data = request.get_json()
+    try:
+        result = client.cards.list(
+            body={
+                "customer_id": data.get('customer_id')
+            }
+        )
+        if result.is_success():
+            return jsonify(result.body)
+        else:
+            return jsonify(result.errors), 400
+    except Exception as e:
+        return jsonify ({"error": str(e)}), 500
 
 @square_bp.route('/list-subscriptions', methods=['GET'])
 def list_subscriptions():
-    client.catalog.list(
-        types = 'subscription_plan'
-    )
+    data = request.get_json()
+    try:
+        result = client.catalog.list(
+            body={
+                "types": 'subscription_plan'
+            }
+        )
+        if result.is_success():
+            return jsonify(result.body)
+        else:
+            return jsonify(result.errors),400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/enroll-subscription', methods=['POST'])
 def enroll_customer():
-    client.subscriptions.create(
-        idempotency_key = data.get('idempotency_key'),
-        customer_id = data.get('customer_id'),
-        location_id = 'LQD9966CWR0XF',
-        card_id = data.get('card_id'),
-        plan_variant_id = data.get('plan_variant_id')
-    )
+    data = request.get_json()
+    try:
+        result = client.subscriptions.create(
+            body={
+                "idempotency_key": data.get('idempotency_key'),
+                "customer_id": data.get('customer_id'),
+                "location_id": 'LQD9966CWR0XF',
+                "card_id": data.get('card_id'),
+                "plan_variant_id": data.get('plan_variant_id')
+            }
+        )
+        if result.is_success():
+            return jsonify(result.body)
+        else:
+            return jsonify(result.errors), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}),500
 
 @square_bp.route('/cancel-subscription', methods=['POST'])
 def cancel_subscription():
-    client.subscriptions.cancel(
-        subscription_id = data.get('subscription_id')
-    )
+    data = request.get_json()
+    try:
+        result = client.subscriptions.cancel(
+            body={
+                "subscription_id": data.get('subscription_id')
+            }
+        )
+        if result.is_success():
+            return jsonify(result.body)
+        else:
+            return jsonify(result.errors), 400
+    except Exception as e:
+        return jsonify({"errors": str(e)}), 500
 
 @square_bp.route('/search-subscriptions', methods=['POST'])
 def search_subscriptions():
-    client.subscriptions.search(
-        query = {
-            "filter": {
-                "customer_ids": data.get('customer_ids'),
+    data = request.get_json()
+    try:
+        result = client.subscriptions.search(
+            body={
+                "query": {
+                    "filter": {
+                        "customer_ids": data.get('customer_ids'),
+                    }
+                }
             }
-        }
-    )
+        )
+        if result.is_success():
+            return jsonify(result.body)
+        else:
+            return jsonify(result.errors), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/create-catalog', methods=['POST'])
 def delete_catalog():
