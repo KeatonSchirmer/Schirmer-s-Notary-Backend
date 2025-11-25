@@ -10,6 +10,7 @@ from routes.calendar import calendar_bp
 from routes.auth import auth_bp
 from routes.mileage import mileage_bp
 from routes.finances import finances_bp
+from routes.square import square_bp
 from database.db import db
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -135,6 +136,7 @@ app.register_blueprint(calendar_bp, url_prefix='/calendar')
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(mileage_bp, url_prefix="/mileage")
 app.register_blueprint(finances_bp, url_prefix="/finances")
+app.register_blueprint(square_bp, url_prefix="/square")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
