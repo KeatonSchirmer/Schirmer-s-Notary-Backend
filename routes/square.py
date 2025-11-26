@@ -5,16 +5,14 @@ import logging
 import requests
 from flask import Blueprint, request, jsonify
 from square.environment import SquareEnvironment
-#from square import Square
-from square.client import Client
+from square import Square
 
 
 
 square_bp = Blueprint('square', __name__)
 logger = logging.getLogger("square_poll")
 
-client = Client(
-    environment= SquareEnvironment.PRODUCTION,
+client = Square(
     token = os.environ.get("SQUARE_ACCESS_TOKEN", "")
 )
 
