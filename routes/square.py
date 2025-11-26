@@ -5,7 +5,7 @@ import logging
 import requests
 from flask import Blueprint, request, jsonify
 from square.environment import SquareEnvironment
-from square import Square
+#from square import Square
 from square.client import Client
 
 
