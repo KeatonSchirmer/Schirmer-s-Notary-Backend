@@ -151,7 +151,7 @@ def customer_polling_worker(interval_seconds=300):
             logger.exception("Polling loop error")
         time.sleep(interval_seconds)
 
-@square_bp.before_app_first_request
+@square_bp.before_app_request
 def start_background_polling():
     try:
         interval = int(os.environ.get("SQUARE_CUSTOMER_POLL_INTERVAL", "300"))
