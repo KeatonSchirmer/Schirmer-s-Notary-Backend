@@ -8,6 +8,7 @@ from square.environment import SquareEnvironment
 from square import Square
 
 
+
 square_bp = Blueprint('square', __name__)
 logger = logging.getLogger("square_poll")
 
@@ -59,11 +60,11 @@ def fetch_all_square_customers():
 
 def find_local_user_for_customer(customer):
     try:
-        from models import db
+        from database import db
         from models.accounts import Client
     except Exception:
         try:
-            from models import db
+            from database import db
             from models import Client
         except Exception as e:
             logger.exception("Unable to import models: %s", e)
