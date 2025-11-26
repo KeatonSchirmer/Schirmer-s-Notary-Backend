@@ -60,11 +60,11 @@ def fetch_all_square_customers():
 
 def find_local_user_for_customer(customer):
     try:
-        from database import db
+        from database.db import db
         from models.accounts import Client
     except Exception:
         try:
-            from database import db
+            from database.db import db
             from models import Client
         except Exception as e:
             logger.exception("Unable to import models: %s", e)
