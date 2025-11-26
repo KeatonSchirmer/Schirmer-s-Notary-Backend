@@ -293,7 +293,7 @@ def list_cards():
 def list_subscriptions():
     try:
         result = client.catalog.list_catalog(
-            types='SUBSCRIPTION_PLAN'
+            types='subscription_PLAN'
         )
         if result.is_success():
             return jsonify(result.body), 200
