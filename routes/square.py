@@ -10,7 +10,7 @@ square_bp = Blueprint('square', __name__)
 logger = logging.getLogger("square_poll")
 
 client = Square(
-    environment='PRODUCTION',
+    environment='production',
     token = os.environ.get("SQUARE_ACCESS_TOKEN", "")
 )
 
