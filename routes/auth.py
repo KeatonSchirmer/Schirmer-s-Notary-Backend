@@ -288,7 +288,6 @@ def view_profile():
     if not user_id:
         return jsonify({"message": "Not logged in"}), 401
     
-    # If user_type is not in session, determine it by checking if user exists as admin or client
     if not user_type:
         admin_user = Admin.query.get(user_id)
         if admin_user:

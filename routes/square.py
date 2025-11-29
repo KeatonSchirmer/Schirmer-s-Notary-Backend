@@ -3,7 +3,8 @@ import threading
 import time
 import logging
 import requests
-from flask import Blueprint, request, jsonify
+import json
+from flask import Blueprint, request, jsonify, render_template_string
 from square.environment import SquareEnvironment
 from square import Square
 
@@ -16,17 +17,8 @@ client = Square(
     token = os.environ.get("SQUARE_ACCESS_TOKEN", "")
 )
 
-#* Switching the following to be created on the frontend
-# Update Customer
-# Search subscriptions
-# Upsert subscription
-# Upsert service
-# Calculate order
-#
-
 def square_base_url():
-    env = os.environ.get("SQUARE_ENV", "sandbox").lower()
-    return "https://connect.squareupsandbox.com" if env == "sandbox" else "https://connect.squareup.com"
+    return "https://connect.squareup.com"
 
 def square_headers():
     token = os.environ.get("SQUARE_ACCESS_TOKEN", "")
@@ -162,6 +154,97 @@ def start_background_polling():
     logger.info("Square customer polling thread started")
     return None
 
+@square_bp.route('/payment-form')
+def payment_form():
+    return render_template_string('''
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <script src="https://web.squarecdn.com/v1/square.js"></script>
+          <style>
+            body { font-family: sans-serif; padding: 20px; background: #f9fafb; margin: 0; }
+            #card-container { margin: 20px 0; background: white; padding: 16px; border-radius: 8px; display: none; }
+            #card-button { background: #2563eb; color: white; border: none; padding: 14px 24px; border-radius: 8px; font-size: 16px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 20px; display: none; }
+            #card-button:disabled { background: #94a3b8; }
+            #error-message { color: #ef4444; margin-top: 12px; font-size: 13px; padding: 12px; background: #fee2e2; border-radius: 6px; display: none; }
+            #error-message.show { display: block; }
+            #loading { text-align: center; color: #6b7280; padding: 20px; font-size: 14px; }
+          </style>
+        </head>
+        <body>
+          <div id="loading">Initializing payment form...</div>
+          <div id="card-container"></div>
+          <button id="card-button">Add Card</button>
+          <div id="error-message"></div>
+          <script>
+            (async function() {
+              const errorDiv = document.getElementById('error-message');
+              const loading = document.getElementById('loading');
+              const cardContainer = document.getElementById('card-container');
+              const cardButton = document.getElementById('card-button');
+              
+              function showError(msg, details = '') {
+                errorDiv.textContent = msg + (details ? '\\n\\n' + details : '');
+                errorDiv.className = 'show';
+                loading.style.display = 'none';
+                if (window.ReactNativeWebView) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ error: 'INIT_FAILED', message: msg, details }));
+                }
+              }
+              
+              try {
+                let attempts = 0;
+                while (!window.Square && attempts < 50) {
+                  await new Promise(r => setTimeout(r, 100));
+                  attempts++;
+                }
+                
+                if (!window.Square) throw new Error('Square SDK failed to load');
+                
+                loading.textContent = 'Connecting to Square...';
+                const payments = Square.payments('sq0idp-_snKLfg8lpgNPIGtawYYUg', 'LQD9966CWR0XF');
+                
+                loading.textContent = 'Loading card form...';
+                const card = await payments.card();
+                await card.attach('#card-container');
+                
+                loading.style.display = 'none';
+                cardContainer.style.display = 'block';
+                cardButton.style.display = 'block';
+                
+                cardButton.onclick = async () => {
+                  cardButton.disabled = true;
+                  cardButton.textContent = 'Processing...';
+                  errorDiv.className = '';
+                  
+                  try {
+                    const result = await card.tokenize();
+                    if (result.status === 'OK') {
+                      cardButton.textContent = 'Success!';
+                      if (window.ReactNativeWebView) {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ nonce: result.token }));
+                      }
+                    } else {
+                      showError('Failed to process card', result.errors?.map(e => e.message).join(', '));
+                      cardButton.disabled = false;
+                      cardButton.textContent = 'Add Card';
+                    }
+                  } catch (e) {
+                    showError('Error processing card', e.message);
+                    cardButton.disabled = false;
+                    cardButton.textContent = 'Add Card';
+                  }
+                };
+              } catch (error) {
+                showError('Failed to initialize payment form', error.message);
+              }
+            })();
+          </script>
+        </body>
+        </html>
+    ''')
+
 @square_bp.route('/webhooks/square', methods=['POST'])
 def square_webhook_receiver():
     payload = {}
@@ -195,58 +278,36 @@ def square_webhook_receiver():
 @square_bp.route('/create-customer', methods=['POST'])
 def create_customer():
     data = request.get_json() or {}
-    try: 
-        result = client.customers.create_customer(
-            body={
-                "given_name": data.get('given_name'),
-                "family_name": data.get('family_name'),
-                "email_address": data.get('email_address'),
-                "phone_number": data.get('phone_number'),
-                "address": data.get('address'),
-                "reference_id": data.get('reference_id'),
-                "note": data.get('note'),
-                "idempotency_key": data.get('idempotency_key')
-            }
-        )
-        if result.is_success():
-            return jsonify(result.body), 200
-        else:
-            return jsonify({"errors": result.errors}), 400
+    try:
+        url = f"{square_base_url()}/v2/customers"
+        params = {
+            "given_name": data.get("name"),
+            "email_address": data.get("email"),
+            "phone_number": data.get("phone"),
+            "reference_id": data.get("user_id"),
+            "note": data.get("note"),
+            "idompotency_key": data.get("idempotency")
+        }
+        r = requests.post(url, headers=square_headers(), json=params, timeout=15)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/list-customers', methods=['GET'])
 def list_customers():
-    try:
-        result = client.customers.list_customers()
-        if result.is_success():
-            return jsonify(result.body), 200
-        else:
-            return jsonify({"errors": result.errors}), 400
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    pass
 
 @square_bp.route('/search-customers', methods=['POST'])
 def search_customers():
     data = request.get_json() or {}
     try:
-        query_filter = {}
-        if data.get('email_address'):
-            query_filter["email_address"] = {"exact": data.get('email_address')}
-        if data.get('reference_id'):
-            query_filter["reference_id"] = {"exact": data.get('reference_id')}
-            
-        result = client.customers.search_customers(
-            body={
-                "query": {
-                    "filter": query_filter
-                }
-            }
-        )
-        if result.is_success():
-            return jsonify(result.body), 200
-        else:
-            return jsonify({"errors": result.errors}), 400
+        url = f"{square_base_url()}/v2/customers/search"
+        params = {"query": {"filter": {"email_address": {"exact": data.get('email')}}}}
+        r = requests.post(url, headers=square_headers(), json=params, timeout=15)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -254,24 +315,21 @@ def search_customers():
 def create_card():
     data = request.get_json() or {}
     try:
-        result = client.cards.create_card(
-            body={
-                "card":{
-                    "cardholder_name": data.get('cardholder_name'),
-                    "customer_id": data.get('customer_id'),
-                    "exp_month": data.get('exp_month'),
-                    "exp_year": data.get('exp_year'),
-                    "reference_id": data.get('reference_id'),
-                    "billing_address": data.get('billing_address')
-                },
-                "idempotency_key": data.get('idempotency_key'),
-                "source_id": data.get('source_id')
-            }
-        )
-        if result.is_success():
-            return jsonify(result.body), 200
-        else:
-            return jsonify({"errors": result.errors}), 400
+        url = f"{square_base_url()}/v2/cards"
+        params={
+            "card":{
+                "cardholder_name": data.get('cardholder_name'),
+                "customer_id": data.get('customer_id'),
+                "exp_month": data.get('exp_month'),
+                "exp_year": data.get('exp_year'),
+                "reference_id": data.get('reference_id'),
+                "billing_address": data.get('billing_address')
+            },
+            "idempotency_key": data.get('idempotency_key'),
+            "source_id": data.get('source_id')
+        }
+        r = requests.post(url, headers=square_headers(), json=params, timeout=15)
+        r.raise_for_status()
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -279,26 +337,23 @@ def create_card():
 def list_cards():
     customer_id = request.args.get('customer_id')
     try:
-        result = client.cards.list_cards(
-            customer_id=customer_id
-        )
-        if result.is_success():
-            return jsonify(result.body), 200
-        else:
-            return jsonify({"errors": result.errors}), 400
+        url = f"{square_base_url()}/v2/cards"
+        params = {"customer_id": customer_id}
+        r = requests.get(url, headers=square_headers(), params=params, timeout=15)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/list-subscriptions', methods=['GET'])
 def list_subscriptions():
     try:
-        result = client.catalog.list_catalog(
-            types='subscription_PLAN'
-        )
-        if result.is_success():
-            return jsonify(result.body), 200
-        else:
-            return jsonify({"errors": result.errors}), 400
+        url = f"{square_base_url()}/v2/catalog/list"
+        params = {"types": "subscription_PLAN"}
+        
+        r = requests.get(url, headers=square_headers(), params=params, timeout=15)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -306,19 +361,10 @@ def list_subscriptions():
 def enroll_customer():
     data = request.get_json() or {}
     try:
-        result = client.subscriptions.create_subscription(
-            body={
-                "idempotency_key": data.get('idempotency_key'),
-                "customer_id": data.get('customer_id'),
-                "location_id": 'LQD9966CWR0XF',
-                "card_id": data.get('card_id'),
-                "plan_variation_id": data.get('plan_variant_id')
-            }
-        )
-        if result.is_success():
-            return jsonify(result.body), 200
-        else:
-            return jsonify({"errors": result.errors}), 400
+        url = f"{square_base_url()}/v2/subscriptions"
+        params ={}
+        r = requests.post(url, headers=square_headers(), json=params, timeout=15)
+        r.raise_for_status()
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -340,19 +386,12 @@ def cancel_subscription():
 def search_subscriptions():
     data = request.get_json() or {}
     try:
-        result = client.subscriptions.search_subscriptions(
-            body={
-                "query": {
-                    "filter": {
-                        "customer_ids": data.get('customer_ids', [])
-                    }
-                }
-            }
-        )
-        if result.is_success():
-            return jsonify(result.body), 200
-        else:
-            return jsonify({"errors": result.errors}), 400
+        url = f"{square_base_url()}/v2/subscriptions/search"
+        params = {"query": {"filter": {"customer_ids": [data.get('customer_ids')]}}}
+        r = requests.post(url, headers=square_headers(), json=params, timeout=15)
+        r.raise_for_status()
+        print(f"Subscription Info:", json.dumps(r.json(), indent=2))
+        return jsonify(r.json()), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
