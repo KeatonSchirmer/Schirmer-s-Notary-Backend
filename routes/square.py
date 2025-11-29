@@ -157,92 +157,239 @@ def start_background_polling():
 @square_bp.route('/payment-form')
 def payment_form():
     return render_template_string('''
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <script src="https://web.squarecdn.com/v1/square.js"></script>
-          <style>
-            body { font-family: sans-serif; padding: 20px; background: #f9fafb; margin: 0; }
-            #card-container { margin: 20px 0; background: white; padding: 16px; border-radius: 8px; display: none; }
-            #card-button { background: #2563eb; color: white; border: none; padding: 14px 24px; border-radius: 8px; font-size: 16px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 20px; display: none; }
-            #card-button:disabled { background: #94a3b8; }
-            #error-message { color: #ef4444; margin-top: 12px; font-size: 13px; padding: 12px; background: #fee2e2; border-radius: 6px; display: none; }
-            #error-message.show { display: block; }
-            #loading { text-align: center; color: #6b7280; padding: 20px; font-size: 14px; }
-          </style>
-        </head>
-        <body>
-          <div id="loading">Initializing payment form...</div>
-          <div id="card-container"></div>
-          <button id="card-button">Add Card</button>
-          <div id="error-message"></div>
-          <script>
-            (async function() {
-              const errorDiv = document.getElementById('error-message');
-              const loading = document.getElementById('loading');
-              const cardContainer = document.getElementById('card-container');
-              const cardButton = document.getElementById('card-button');
-              
-              function showError(msg, details = '') {
-                errorDiv.textContent = msg + (details ? '\\n\\n' + details : '');
-                errorDiv.className = 'show';
-                loading.style.display = 'none';
-                if (window.ReactNativeWebView) {
-                  window.ReactNativeWebView.postMessage(JSON.stringify({ error: 'INIT_FAILED', message: msg, details }));
-                }
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://web.squarecdn.com/v1/square.js"></script>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding: 20px;
+            margin: 0;
+            background-color: #f9fafb;
+          }
+          .form-group {
+            margin-bottom: 16px;
+          }
+          label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 6px;
+          }
+          input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+          }
+          input:focus {
+            outline: none;
+            border-color: #2563eb;
+          }
+          #card-container {
+            margin: 16px 0;
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: none;
+          }
+          #card-button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+            margin-top: 20px;
+            display: none;
+          }
+          #card-button:disabled {
+            background-color: #94a3b8;
+            cursor: not-allowed;
+          }
+          #error-message {
+            color: #ef4444;
+            margin-top: 12px;
+            font-size: 13px;
+            padding: 12px;
+            background-color: #fee2e2;
+            border-radius: 6px;
+            display: none;
+          }
+          #error-message.show {
+            display: block;
+          }
+          #loading {
+            text-align: center;
+            color: #6b7280;
+            padding: 20px;
+            font-size: 14px;
+          }
+          .required {
+            color: #ef4444;
+          }
+        </style>
+      </head>
+      <body>
+        <div id="loading">Initializing payment form...</div>
+        
+        <form id="payment-form" style="display: none;">
+          <div class="form-group">
+            <label>Cardholder Name <span class="required">*</span></label>
+            <input type="text" id="cardholder-name" placeholder="John Doe" required />
+          </div>
+          
+          <div class="form-group">
+            <label>Address Line 1 <span class="required">*</span></label>
+            <input type="text" id="address-line-1" placeholder="123 Main St" required />
+          </div>
+          
+          <div class="form-group">
+            <label>Address Line 2</label>
+            <input type="text" id="address-line-2" placeholder="Apt 4B (optional)" />
+          </div>
+          
+          <div class="form-group">
+            <label>City <span class="required">*</span></label>
+            <input type="text" id="locality" placeholder="San Francisco" required />
+          </div>
+          
+          <div class="form-group">
+            <label>State/Province <span class="required">*</span></label>
+            <input type="text" id="administrative-district" placeholder="CA" required maxlength="2" style="text-transform: uppercase;" />
+          </div>
+          
+          <div class="form-group">
+            <label>Postal Code <span class="required">*</span></label>
+            <input type="text" id="postal-code" placeholder="94103" required />
+          </div>
+          
+          <div class="form-group">
+            <label>Country <span class="required">*</span></label>
+            <input type="text" id="country" value="US" maxlength="2" style="text-transform: uppercase;" required />
+          </div>
+          
+          <div class="form-group">
+            <label>Card Details <span class="required">*</span></label>
+            <div id="card-container"></div>
+          </div>
+          
+          <button type="submit" id="card-button">Add Card</button>
+        </form>
+        
+        <div id="error-message"></div>
+        
+        <script>
+          (async function() {
+            const errorDiv = document.getElementById('error-message');
+            const loading = document.getElementById('loading');
+            const paymentForm = document.getElementById('payment-form');
+            const cardContainer = document.getElementById('card-container');
+            const cardButton = document.getElementById('card-button');
+            
+            function showError(msg, details = '') {
+              errorDiv.textContent = msg + (details ? '\\n\\n' + details : '');
+              errorDiv.className = 'show';
+              loading.style.display = 'none';
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                  error: 'INIT_FAILED', 
+                  message: msg, 
+                  details 
+                }));
+              }
+            }
+            
+            try {
+              let attempts = 0;
+              while (!window.Square && attempts < 50) {
+                await new Promise(r => setTimeout(r, 100));
+                attempts++;
               }
               
-              try {
-                let attempts = 0;
-                while (!window.Square && attempts < 50) {
-                  await new Promise(r => setTimeout(r, 100));
-                  attempts++;
+              if (!window.Square) throw new Error('Square SDK failed to load');
+              
+              loading.textContent = 'Connecting to Square...';
+              const payments = Square.payments('sq0idp-_snKLfg8lpgNPIGtawYYUg', 'LQD9966CWR0XF');
+              
+              loading.textContent = 'Loading card form...';
+              const card = await payments.card();
+              await card.attach('#card-container');
+              
+              loading.style.display = 'none';
+              paymentForm.style.display = 'block';
+              cardContainer.style.display = 'block';
+              cardButton.style.display = 'block';
+              
+              paymentForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                // Validate required fields
+                const cardholderName = document.getElementById('cardholder-name').value.trim();
+                const addressLine1 = document.getElementById('address-line-1').value.trim();
+                const locality = document.getElementById('locality').value.trim();
+                const adminDistrict = document.getElementById('administrative-district').value.trim();
+                const postalCode = document.getElementById('postal-code').value.trim();
+                const country = document.getElementById('country').value.trim();
+                
+                if (!cardholderName || !addressLine1 || !locality || !adminDistrict || !postalCode || !country) {
+                  showError('Please fill in all required fields');
+                  return;
                 }
                 
-                if (!window.Square) throw new Error('Square SDK failed to load');
+                cardButton.disabled = true;
+                cardButton.textContent = 'Processing...';
+                errorDiv.className = '';
                 
-                loading.textContent = 'Connecting to Square...';
-                const payments = Square.payments('sq0idp-_snKLfg8lpgNPIGtawYYUg', 'LQD9966CWR0XF');
-                
-                loading.textContent = 'Loading card form...';
-                const card = await payments.card();
-                await card.attach('#card-container');
-                
-                loading.style.display = 'none';
-                cardContainer.style.display = 'block';
-                cardButton.style.display = 'block';
-                
-                cardButton.onclick = async () => {
-                  cardButton.disabled = true;
-                  cardButton.textContent = 'Processing...';
-                  errorDiv.className = '';
-                  
-                  try {
-                    const result = await card.tokenize();
-                    if (result.status === 'OK') {
-                      cardButton.textContent = 'Success!';
-                      if (window.ReactNativeWebView) {
-                        window.ReactNativeWebView.postMessage(JSON.stringify({ nonce: result.token }));
+                try {
+                  const result = await card.tokenize();
+                  if (result.status === 'OK') {
+                    cardButton.textContent = 'Success!';
+                    
+                    // Send all data back to React Native
+                    const cardData = {
+                      nonce: result.token,
+                      cardholder_name: cardholderName,
+                      billing_address: {
+                        address_line_1: addressLine1,
+                        address_line_2: document.getElementById('address-line-2').value.trim() || undefined,
+                        locality: locality,
+                        administrative_district_level_1: adminDistrict.toUpperCase(),
+                        postal_code: postalCode,
+                        country: country.toUpperCase()
                       }
-                    } else {
-                      showError('Failed to process card', result.errors?.map(e => e.message).join(', '));
-                      cardButton.disabled = false;
-                      cardButton.textContent = 'Add Card';
+                    };
+                    
+                    if (window.ReactNativeWebView) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify(cardData));
                     }
-                  } catch (e) {
-                    showError('Error processing card', e.message);
+                  } else {
+                    showError('Failed to process card', result.errors?.map(e => e.message).join(', '));
                     cardButton.disabled = false;
                     cardButton.textContent = 'Add Card';
                   }
-                };
-              } catch (error) {
-                showError('Failed to initialize payment form', error.message);
-              }
-            })();
-          </script>
-        </body>
-        </html>
+                } catch (e) {
+                  showError('Error processing card', e.message);
+                  cardButton.disabled = false;
+                  cardButton.textContent = 'Add Card';
+                }
+              });
+            } catch (error) {
+              showError('Failed to initialize payment form', error.message);
+            }
+          })();
+        </script>
+      </body>
+      </html>
     ''')
 
 @square_bp.route('/webhooks/square', methods=['POST'])
