@@ -533,7 +533,7 @@ def edit_subscription():
                             "cadence": data.get("cadence"),
                             "ordinal": 0,
                             "pricing": {
-                                "type": "FIXED",
+                                "type": "STATIC",
                                 "price_money": {
                                     "amount": int(data.get("amount")),
                                     "currency": "USD"
