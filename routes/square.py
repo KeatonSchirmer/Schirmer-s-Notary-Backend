@@ -5,7 +5,6 @@ import logging
 import requests
 import json
 from flask import Blueprint, request, jsonify, render_template_string
-from square.environment import SquareEnvironment
 from square import Square
 
 
@@ -458,6 +457,17 @@ def search_customers():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@square_bp.route('/retrieve-customer')
+def retrieve_customer():
+    data = request.get_json() or {}
+    try:
+        url : f"{square_base_url}/v2/customers{data.get('customer_id')}"
+        r = requests.get(url, headers=square_headers(), timeout=15)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @square_bp.route('/create-card', methods=['POST'])
 def create_card():
     data = request.get_json() or {}
@@ -504,6 +514,38 @@ def list_subscriptions():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@square_bp.route('/edit-subscription', methods=['POST'])
+def edit_subscription():
+    data = request.get_json() or {}
+    try:
+        url = f"{square_base_url}/v2/catalog/list"
+        params = {
+          "types": "subscription_PLAN",
+          "subscription_plan_data": {
+              "subscription_plan_variations": [{
+                  "type": "SUBSCRIPTION_PLAN_VARIATION",
+                  "subscription_plan_variation_data": {
+                      "name": data.get('name'),
+                      "phases": [{
+                          "cadence": data.get('cadence'),
+                          "pricing": {
+                              "type": "FIXED",
+                              "price_money": {
+                                  "amount": data.get('amount'),
+                                  "currency": "USD"
+                              },
+                              "discount_ids": [data.get('discount')]
+                          }
+                      }]
+                  }
+              }],
+              "all_items": "True"
+          }
+        }
+        r = requests.post(url, headers=square_headers(), json=params, timeout=15)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @square_bp.route('/enroll-subscription', methods=['POST'])
 def enroll_customer():
     data = request.get_json() or {}
@@ -546,26 +588,36 @@ def search_subscriptions():
 def delete_catalog():
     pass
 
-@square_bp.route('/create-order', methods=['POST'])
-def create_order():
-    pass
-
-@square_bp.route('/update-order', methods=['POST'])
-def update_order():
-    pass
-
-@square_bp.route('/pay-order', methods=['POST'])
-def pay_order():
-    pass
-
-@square_bp.route('/create-invoice', methods=['POST'])
-def create_invoice():
-    pass
-
-@square_bp.route('/delete-invoice', methods=['POST'])
-def delete_invoice():
-    pass
-
-@square_bp.route('/publish-invoice', methods=['POST'])
-def publish_invoice():
-    pass
+@square_bp.route('/list-service', methods=['GET'])
+def list_services():
+    try:
+        url = f"{square_base_url}/v2/catalog/list"
+        params = {"types": "ITEM"}
+        r = request.get(url, headers=square_headers(), params=params, timeout=15)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@square_bp.route('/retrieve-group', methods=['GET'])
+def retrieve_group():
+    data = request.get_json() or {}
+    try:
+        url = f"{square_base_url}/v2/customers/groups/{data.get('group_id')}"
+        r = requests.get(url, headers=square_headers(), timeout=15)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@square_bp.route('/enroll-group', methods=['PUT'])
+def enroll_group():
+    data = request.get_json() or {}
+    try:
+        url = f"{square_base_url}/v2/customers/{data.get('customer_id')}/groups/{data.get('group_id')}"
+        r = requests.put(url, headers=square_headers(), timeout=15)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    

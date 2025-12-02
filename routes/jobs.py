@@ -36,38 +36,75 @@ def send_push_notification(token, title, body):
     except Exception as e:
         print(f"Failed to send push notification: {e}")
 
-def temp_booking_email(name, email, phone, notes):
-    subject = "New Appointment Request"
-    body = f"""New Request from {name},    
-
-A new booking request was made and they are looking for the following services:
-
-{notes}
-
-If they did not provide enough information their email is {email} and their phone number is {phone}.
-"""
-    msg = MIMEText(body)
-    msg['Subject'] = subject
-    msg['From'] = "no-reply@schirmersnotary.com"
-    msg['To'] = 'schirmer.nikolas@gmail.com'
-
-    smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
-    smtp_port = int(os.environ.get('SMTP_PORT', '587'))
-    smtp_username = os.environ.get('SMTP_USERNAME')
-    smtp_password = os.environ.get('SMTP_PASSWORD')
-
-    if not smtp_username or not smtp_password:
-        print("Email credentials not configured")
-        return
-
+def temp_booking_email(name, email, phone, notes, files):
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from email.mime.base import MIMEBase
+    from email import encoders
+    import smtplib
+    import os
+    
     try:
+        subject = "New Appointment Request"
+        body = f"""New Request from {name},    
+
+        A new booking request was made and they are looking for the following services:
+
+        {notes}
+
+        If they did not provide enough information their email is {email} and their phone number is {phone}.
+        """
+                
+        msg = MIMEMultipart()
+        msg['Subject'] = subject
+        msg['From'] = "no-reply@schirmersnotary.com"
+        msg['To'] = 'schirmer.nikolas@gmail.com'
+        msg.attach(MIMEText(body, 'plain'))
+
+        for f in files:
+            if f and f.filename:
+                try:
+                    data = f.read()
+                    print(f"Read file: {f.filename}, size: {len(data)} bytes")
+                    
+                    content_type = f.content_type or 'application/octet-stream'
+                    if '/' in content_type:
+                        maintype, subtype = content_type.split('/', 1)
+                    else:
+                        maintype, subtype = 'application', 'octet-stream'
+                    
+                    part = MIMEBase(maintype, subtype)
+                    part.set_payload(data)
+                    encoders.encode_base64(part)
+                    part.add_header('Content-Disposition', 'attachment', filename=f.filename)
+                    msg.attach(part)
+                    print(f"Attached file: {f.filename}")
+                except Exception as file_err:
+                    print(f"Error attaching file {f.filename}: {str(file_err)}")
+                    raise
+
+        smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+        smtp_port = int(os.environ.get('SMTP_PORT', '587'))
+        smtp_username = os.environ.get('SMTP_USERNAME')
+        smtp_password = os.environ.get('SMTP_PASSWORD')
+
+        if not smtp_username or not smtp_password:
+            print("SMTP credentials missing")
+            raise Exception("Email credentials not configured. Please set SMTP_USERNAME and SMTP_PASSWORD environment variables.")
+
+        print(f"Connecting to {smtp_server}:{smtp_port} as {smtp_username}")
+        
         with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.starttls()
             server.login(smtp_username, smtp_password)
             server.sendmail(msg['From'], [msg['To']], msg.as_string())
+            print("Email sent successfully")
     except Exception as e:
-        print(f"Failed to send confirmation email: {e}")
-    
+        print(f"Failed to send confirmation email: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+
 def send_confirmation_email(to_email, name, service, date, time):
     subject = "Booking Confirmation"
     body = f"""Hello {name},
@@ -195,18 +232,25 @@ def request_booking():
 
 @jobs_bp.route('/tempRequest', methods=['POST'])
 def temp_request_booking():
-    data = request.get_json()
-    name = data.get('name')
-    email = data.get('email')
-    phone = data.get('phone')
-    notes = data.get('notes')
-
     try:
-        temp_booking_email(name, email, phone, notes)
+        name = request.form.get('name')
+        email = request.form.get('email')
+        phone = request.form.get('phone')
+        notes = request.form.get('notes')
+        files = request.files.getlist('attachments')
+
+        print(f"Received request: name={name}, email={email}, files={len(files)}")
+
+        if not name or not email:
+            return jsonify({"error": "Name and email are required"}), 400
+
+        temp_booking_email(name, email, phone, notes, files)
         return jsonify({"message": "Appointment requested, please lookout for response email."}), 200
     except Exception as e:
-        print(f"Error in temp booking request: {e}")
-        return jsonify({"error": "Failed to send appointment request"}), 500
+        print(f"Error in temp_request_booking: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to send appointment request: {str(e)}"}), 500
 
 @jobs_bp.route('/<int:booking_id>', methods=['GET'])
 def get_booking(booking_id):
