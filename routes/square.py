@@ -531,7 +531,7 @@ def edit_subscription():
                     "subscription_plan_variations": [
                         {
                             "id": data.get("planId"),
-                            "types": "SUBSCRIPTION_PLAN_VARIATION",
+                            "type": "SUBSCRIPTION_PLAN_VARIATION",
                             "phases": [
                               {
                                   "cadence": data.get("cadence"),
