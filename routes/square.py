@@ -546,10 +546,17 @@ def edit_subscription():
         r.raise_for_status()
         return jsonify(r.json()), 200
     except requests.exceptions.HTTPError as e:
-      return jsonify({
-        "error": "square_error",
-        "details": e.response.json()
-      }), 500
+        try:
+            sq = e.response.json()
+        except:
+            sq = {"raw_error": e.response.text}
+
+        print("SQUARE ERROR:", sq)
+
+        return jsonify({
+            "error": "square_error",
+            "square_raw": sq
+        }), 500
 
 @square_bp.route('/enroll-subscription', methods=['POST'])
 def enroll_customer():
