@@ -517,35 +517,38 @@ def list_subscriptions():
 @square_bp.route('/edit-subscription', methods=['POST'])
 def edit_subscription():
     data = request.get_json() or {}
+
     try:
         url = f"{square_base_url()}/v2/catalog/object"
+
         params = {
-            "idempotency_key": data.get('idempotency'),
-            "types": "subscription_PLAN",
-            "subscription_plan_data": {
-                "subscription_plan_variations": [{
-                    "type": "SUBSCRIPTION_PLAN_VARIATION",
-                    "subscription_plan_variation_data": {
-                        "name": data.get('name'),
-                        "phases": [{
-                            "cadence": data.get('cadence'),
+            "idempotency_key": data.get("idempotency_key"),
+            "object": {
+                "id": data.get("id"),
+                "type": "SUBSCRIPTION_PLAN",
+                "subscription_plan_data": {
+                    "name": data.get("name"),
+                    "phases": [
+                        {
+                            "cadence": data.get("cadence"),
+                            "ordinal": 0,
                             "pricing": {
                                 "type": "FIXED",
                                 "price_money": {
-                                    "amount": data.get('amount'),
+                                    "amount": int(data.get("amount")),
                                     "currency": "USD"
-                                },
-                                "discount_ids": [data.get('discount')]
+                                }
                             }
-                        }]
-                    }
-                }],
-                "all_items": "True"
+                        }
+                    ]
+                }
             }
         }
+
         r = requests.post(url, headers=square_headers(), json=params, timeout=15)
         r.raise_for_status()
-        return jsonify(r.json()), 200
+        return jsonify(r.json()), r.status_code
+
     except requests.exceptions.HTTPError as e:
         try:
             sq = e.response.json()
@@ -597,7 +600,7 @@ def search_subscriptions():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@square_bp.route('/create-catalog', methods=['POST'])
+@square_bp.route('/delete-catalog', methods=['POST'])
 def delete_catalog():
     pass
 
