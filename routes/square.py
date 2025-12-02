@@ -532,19 +532,22 @@ def edit_subscription():
                         {
                             "id": data.get("planId"),
                             "type": "SUBSCRIPTION_PLAN_VARIATION",
-                            "phases": [
-                              {
-                                  "cadence": data.get("cadence"),
-                                  "ordinal": 0,
-                                  "pricing": {
-                                      "type": "STATIC",
-                                      "price_money": {
-                                          "amount": int(data.get("amount")),
-                                          "currency": "USD"
-                                      }
-                                  }
-                              }
-                          ]  
+                            "subscription_plan_variation_data":{
+                                "phases": [
+                                    {
+                                        "cadence": data.get("cadence"),
+                                        "ordinal": 0,
+                                        "pricing": {
+                                            "type": "STATIC",
+                                            "price_money": {
+                                                "amount": int(data.get("amount")),
+                                                "currency": "USD"
+                                            }
+                                        }
+                                    }
+                                ] 
+                            }
+                             
                         }
                     ]
                     
