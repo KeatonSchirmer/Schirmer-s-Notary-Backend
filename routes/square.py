@@ -518,7 +518,7 @@ def list_subscriptions():
 def edit_subscription():
     data = request.get_json() or {}
     try:
-        url = f"{square_base_url()}/v2/catalog/upsert"
+        url = f"{square_base_url()}/v2/catalog/object"
         params = {
           "types": "subscription_PLAN",
           "subscription_plan_data": {
