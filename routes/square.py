@@ -524,23 +524,29 @@ def edit_subscription():
         params = {
             "idempotency_key": data.get("idempotency_key"),
             "object": {
-                "id": data.get("id"),
+                "id": data.get("objId"),
                 "type": "SUBSCRIPTION_PLAN",
                 "subscription_plan_data": {
                     "name": data.get("name"),
-                    "phases": [
+                    "subscription_plan_variations": [
                         {
-                            "cadence": data.get("cadence"),
-                            "ordinal": 0,
-                            "pricing": {
-                                "type": "STATIC",
-                                "price_money": {
-                                    "amount": int(data.get("amount")),
-                                    "currency": "USD"
-                                }
-                            }
+                            "id": data.get("planId"),
+                            "phases": [
+                              {
+                                  "cadence": data.get("cadence"),
+                                  "ordinal": 0,
+                                  "pricing": {
+                                      "type": "STATIC",
+                                      "price_money": {
+                                          "amount": int(data.get("amount")),
+                                          "currency": "USD"
+                                      }
+                                  }
+                              }
+                          ]  
                         }
                     ]
+                    
                 }
             }
         }
