@@ -520,27 +520,28 @@ def edit_subscription():
     try:
         url = f"{square_base_url()}/v2/catalog/object"
         params = {
-          "types": "subscription_PLAN",
-          "subscription_plan_data": {
-              "subscription_plan_variations": [{
-                  "type": "SUBSCRIPTION_PLAN_VARIATION",
-                  "subscription_plan_variation_data": {
-                      "name": data.get('name'),
-                      "phases": [{
-                          "cadence": data.get('cadence'),
-                          "pricing": {
-                              "type": "FIXED",
-                              "price_money": {
-                                  "amount": data.get('amount'),
-                                  "currency": "USD"
-                              },
-                              "discount_ids": [data.get('discount')]
-                          }
-                      }]
-                  }
-              }],
-              "all_items": "True"
-          }
+            "idempotency_key": data.get('idempotency'),
+            "types": "subscription_PLAN",
+            "subscription_plan_data": {
+                "subscription_plan_variations": [{
+                    "type": "SUBSCRIPTION_PLAN_VARIATION",
+                    "subscription_plan_variation_data": {
+                        "name": data.get('name'),
+                        "phases": [{
+                            "cadence": data.get('cadence'),
+                            "pricing": {
+                                "type": "FIXED",
+                                "price_money": {
+                                    "amount": data.get('amount'),
+                                    "currency": "USD"
+                                },
+                                "discount_ids": [data.get('discount')]
+                            }
+                        }]
+                    }
+                }],
+                "all_items": "True"
+            }
         }
         r = requests.post(url, headers=square_headers(), json=params, timeout=15)
         r.raise_for_status()
