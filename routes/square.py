@@ -461,7 +461,7 @@ def search_customers():
 def retrieve_customer():
     data = request.get_json() or {}
     try:
-        url : f"{square_base_url}/v2/customers{data.get('customer_id')}"
+        url : f"{square_base_url()}/v2/customers{data.get('customer_id')}"
         r = requests.get(url, headers=square_headers(), timeout=15)
         r.raise_for_status()
         return jsonify(r.json()), 200
@@ -518,7 +518,7 @@ def list_subscriptions():
 def edit_subscription():
     data = request.get_json() or {}
     try:
-        url = f"{square_base_url}/v2/catalog/list"
+        url = f"{square_base_url()}/v2/catalog/list"
         params = {
           "types": "subscription_PLAN",
           "subscription_plan_data": {
@@ -591,7 +591,7 @@ def delete_catalog():
 @square_bp.route('/list-service', methods=['GET'])
 def list_services():
     try:
-        url = f"{square_base_url}/v2/catalog/list"
+        url = f"{square_base_url()}/v2/catalog/list"
         params = {"types": "ITEM"}
         r = request.get(url, headers=square_headers(), params=params, timeout=15)
         r.raise_for_status()
@@ -603,7 +603,7 @@ def list_services():
 def retrieve_group():
     data = request.get_json() or {}
     try:
-        url = f"{square_base_url}/v2/customers/groups/{data.get('group_id')}"
+        url = f"{square_base_url()}/v2/customers/groups/{data.get('group_id')}"
         r = requests.get(url, headers=square_headers(), timeout=15)
         r.raise_for_status()
         return jsonify(r.json()), 200
@@ -614,7 +614,7 @@ def retrieve_group():
 def enroll_group():
     data = request.get_json() or {}
     try:
-        url = f"{square_base_url}/v2/customers/{data.get('customer_id')}/groups/{data.get('group_id')}"
+        url = f"{square_base_url()}/v2/customers/{data.get('customer_id')}/groups/{data.get('group_id')}"
         r = requests.put(url, headers=square_headers(), timeout=15)
         r.raise_for_status()
         return jsonify(r.json()), 200
