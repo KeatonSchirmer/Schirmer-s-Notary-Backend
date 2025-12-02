@@ -461,7 +461,7 @@ def search_customers():
 def retrieve_customer():
     data = request.get_json() or {}
     try:
-        url : f"{square_base_url()}/v2/customers{data.get('customer_id')}"
+        url = f"{square_base_url()}/v2/customers{data.get('customer_id')}"
         r = requests.get(url, headers=square_headers(), timeout=15)
         r.raise_for_status()
         return jsonify(r.json()), 200
@@ -518,7 +518,7 @@ def list_subscriptions():
 def edit_subscription():
     data = request.get_json() or {}
     try:
-        url = f"{square_base_url()}/v2/catalog/object"
+        url = f"{square_base_url()}/v2/catalog/upsert"
         params = {
           "types": "subscription_PLAN",
           "subscription_plan_data": {
