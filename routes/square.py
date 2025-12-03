@@ -653,7 +653,7 @@ def search_subscriptions():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@square_bp.route('/delete-catalog', methods=['POST'])
+@square_bp.route('/delete-catalog', methods=['DELETE'])
 def delete_catalog():
     data = request.get_json() or {}
     try:
