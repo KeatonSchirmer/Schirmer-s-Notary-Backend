@@ -571,7 +571,7 @@ def create_subscription():
                   "type": "SUBSCRIPTION_PLAN",
                   "id": data.get("objId"),
                   "subscription_plan_data": {
-                      "all_items": "True",
+                      "all_items": True,
                       "name": data.get("name"), 
                       "subscription_plan_variations": [
                           {
