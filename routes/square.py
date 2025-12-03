@@ -573,6 +573,53 @@ def edit_subscription():
             "square_raw": sq
         }), 500
 
+@square_bp.route('/create-subscription', methods=['POST'])
+def create_subscription():
+    data = request.get_json() or {}
+    try:
+        url = f"{square_base_url}/v2/catalog/object"
+        params = {
+            "idempotency_key": data.get("idempotency_key"),
+            "object": {
+                "type": "subscription_PLAN",
+                "subscription_plan_data": {
+                    "subscription_plan_data": {
+                        "name": data.get("name"),
+                        "all_items": "TRUE",
+                        "subscription_plan_variations": [
+                            {
+                                "type": "SUBSCRIPTION_PLAN_VARIATION",
+                                "name": data.get("name"),
+                                "subscriptionplan_variation_data": {
+                                    "name": data.get("name"),
+                                    "phases": [
+                                        {
+                                            "cadence": data.get("cadence"),
+                                            "discount_ids": [
+                                                data.get("discount_id")
+                                            ],
+                                            "pricing": {
+                                                "type": "STATIC",
+                                                "price_money": {
+                                                    "amount": data.get("amount"),
+                                                    "currency": "USD"
+                                                }
+                                            },
+                                        },
+                                    ]
+                                },
+                            },
+                        ]
+                    },
+                },
+            },
+        }
+        r = requests.post(url, headers=square_headers(), json=params, timeout=15)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @square_bp.route('/enroll-subscription', methods=['POST'])
 def enroll_customer():
     data = request.get_json() or {}
@@ -648,3 +695,13 @@ def enroll_group():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+@square_bp.route('/list-discount', methods=['GET'])
+def list_discounts():
+    try:
+        url =f"{square_base_url}/v2/catalog/list"
+        params = {"types": "discount"}
+        r = requests.get(url, headers=square_headers(), params=params, timeout=15)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
