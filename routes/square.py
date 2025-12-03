@@ -569,6 +569,8 @@ def create_subscription():
             "idempotency_key": data.get("idempotency_key"),
             "object": {
                 "type": "SUBSCRIPTION_PLAN",
+                "name": data.get("name"),
+                "id": data.get("objId"),
                 "subscription_plan_data": {
                     "subscription_plan_data": {
                         "name": data.get("name"),
