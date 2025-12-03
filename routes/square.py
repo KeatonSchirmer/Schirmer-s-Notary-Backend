@@ -655,7 +655,14 @@ def search_subscriptions():
 
 @square_bp.route('/delete-catalog', methods=['POST'])
 def delete_catalog():
-    pass
+    data = request.get_json() or {}
+    try:
+        url = f"{square_base_url()}/v2/catalog/object/{data.get('object_id')}"
+        r = requests.delete(url, headers=square_headers(), timeout=15)
+        r.raise_for_status()
+        return jsonify(r.json()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @square_bp.route('/list-service', methods=['GET'])
 def list_services():
