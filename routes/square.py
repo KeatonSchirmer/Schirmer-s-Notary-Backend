@@ -604,8 +604,18 @@ def create_subscription():
         r = requests.post(url, headers=square_headers(), json=params, timeout=15)
         r.raise_for_status()
         return jsonify(r.json()), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except requests.exceptions.HTTPError as e:
+        try:
+            sq = e.response.json()
+        except:
+            sq = {"raw_error": e.response.text}
+
+        print("SQUARE ERROR:", sq)
+
+        return jsonify({
+            "error": "square_error",
+            "square_raw": sq
+        }), 500
 
 @square_bp.route('/enroll-subscription', methods=['POST'])
 def enroll_customer():
