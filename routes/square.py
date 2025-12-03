@@ -564,7 +564,7 @@ def edit_subscription():
 def create_subscription():
     data = request.get_json() or {}
     try:
-        url = f"{square_base_url}/v2/catalog/object"
+        url = f"{square_base_url()}/v2/catalog/object"
         params = {
             "idempotency_key": data.get("idempotency_key"),
             "object": {
