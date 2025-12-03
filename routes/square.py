@@ -588,9 +588,6 @@ def create_subscription():
                                                   "amount": data.get("amount"),
                                                   "currency": "USD"
                                               },
-                                              "discount_ids": [
-                                                  data.get("discount")
-                                              ]
                                           }
                                       }
                                   ]
