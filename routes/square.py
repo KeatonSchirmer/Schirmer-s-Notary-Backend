@@ -568,40 +568,39 @@ def create_subscription():
         params = {
             "idempotency_key": data.get("idempotency_key"),
             "object": {
-                "type": "SUBSCRIPTION_PLAN",
-                "name": data.get("name"),
-                "id": data.get("objId"),
-                "subscription_plan_data": {
-                    "subscription_plan_data": {
-                        "name": data.get("name"),
-                        "all_items": "TRUE",
-                        "subscription_plan_variations": [
-                            {
-                                "type": "SUBSCRIPTION_PLAN_VARIATION",
-                                "name": data.get("name"),
-                                "subscriptionplan_variation_data": {
-                                    "name": data.get("name"),
-                                    "phases": [
-                                        {
-                                            "cadence": data.get("cadence"),
-                                            "discount_ids": [
-                                                data.get("discount_id")
-                                            ],
-                                            "pricing": {
-                                                "type": "STATIC",
-                                                "price_money": {
-                                                    "amount": data.get("amount"),
-                                                    "currency": "USD"
-                                                }
-                                            },
-                                        },
-                                    ]
-                                },
-                            },
-                        ]
-                    },
-                },
-            },
+                  "type": "SUBSCRIPTION_PLAN",
+                  "id": data.get("objId"),
+                  "subscription_plan_data": {
+                      "all_items": "True",
+                      "name": data.get("name"), 
+                      "subscription_plan_variations": [
+                          {
+                              "type": "SUBSCRIPTION_PLAN_VARIATION",
+                              "id": data.get("planId"),
+                              "subscription_plan_variation_data": {
+                                  "name": data.get("name"),
+                                  "phases": [
+                                      {
+                                          "cadence": data.get("cadence"),
+                                          "pricing": {
+                                              "type": "STATIC",
+                                              "price_money": {
+                                                  "amount": data.get("amount"),
+                                                  "currency": "USD"
+                                              },
+                                              "discount_ids": [
+                                                  data.get("discount")
+                                              ]
+                                          }
+                                      }
+                                  ]
+                              },
+                              
+                          }
+                      ],
+                      
+                  },
+              },
         }
         r = requests.post(url, headers=square_headers(), json=params, timeout=15)
         r.raise_for_status()
