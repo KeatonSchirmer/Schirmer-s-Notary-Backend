@@ -17,5 +17,3 @@ class Booking(db.Model):
     mileage = db.relationship('Mileage', backref='booking', lazy=True)
     journal_id = db.Column(db.Integer, db.ForeignKey('journal.id'), nullable=True)
     status = db.Column(db.Enum("pending", "accepted", "denied", "completed", name="booking_status"), default="pending")
-
-    

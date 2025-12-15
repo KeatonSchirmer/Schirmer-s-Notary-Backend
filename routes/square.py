@@ -674,6 +674,10 @@ def delete_catalog():
             "square_raw": sq
         }), 500
 
+@square_bp.route('/disable-subscription', methods=['POST'])
+def disable_subscription():
+    pass
+
 @square_bp.route('/list-service', methods=['GET'])
 def list_services():
     try:
@@ -710,10 +714,101 @@ def enroll_group():
 @square_bp.route('/list-discount', methods=['GET'])
 def list_discounts():
     try:
-        url =f"{square_base_url}/v2/catalog/list"
+        url =f"{square_base_url()}/v2/catalog/list"
         params = {"types": "discount"}
         r = requests.get(url, headers=square_headers(), params=params, timeout=15)
         r.raise_for_status()
         return jsonify(r.json()), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@square_bp.route('/create-order', methods=['POST'])
+def create_order():
+    data = request.get_json() or {}
+    try:
+        url = f'{square_base_url()}/v2/orders'
+
+        line_items_data = data.get("line_items", [])
+        if not line_items_data and data.get("itemName"):
+            line_items_data =[{
+                "name": data.get("itemName"),
+                "quantity": data.get("itemQuantity"),
+                "base_price_money": {
+                    "amount": data.get("itemAmount"),
+                    "currency": "USD"
+                }
+            }]
+            line_items = []
+            for item in line_items_data:
+                line_items.append({
+                    "name": item.get("name"),
+                    "quantity": item.get("quantity"),
+                    "base_price_money": item.get("base_price_money")
+                })
+
+        params = {
+            "order": {
+                "location_id": "LQD9966CWR0XF",
+                "state": "OPEN",
+                "customer_id": data.get("customer_id"),
+                "line_items": line_items,
+                "pricing_options": {
+                    "auto_apply_discounts": True,
+                    "auto_apply_taxes": False
+                },
+                "discounts": [
+                    {
+                        "type": "FIXED_AMOUNT",
+                        "name": data.get("discountName"),
+                        "percentage": data.get("discountPercentage"),
+                        "scope": "ORDER",
+                    }
+                ]
+            }
+        }
+
+        r = requests.post(url, headers=square_headers(), json=params, timeout=15)
+        r.raise_for_status()
+
+        return jsonify(r.json()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@square_bp.route('/create-invoice', methods=['POST'])
+def create_invoice():
+    data = request.get_json() or {}
+    try:
+        url = f"{square_base_url()}/v2/invoices"
+        params = {
+            "idempotency_key": data.get("idempotency_key"),
+            "invoice": {
+                "title": data.get("title"),
+                "description": data.get("description"),
+                "order_id": data.get("order_id"),
+                "location_id": "LQD9966CWR0XF",
+                "store_payment_method_enabled": True,
+                "payment_requests": [
+                    {
+                        "automatic_payment_source": "CARD_ON_FILE",
+                        "request_type": "DEPOSIT",
+                        "due_date": data.get("deposit_due"),
+                        "percentage": "30",
+                        "card_id": data.get("card_id")
+                    },
+                    {
+                        "automatic_payment_source": "CARD_ON_FILE",
+                        "request_type": "BALANCE",
+                        "due_date": data.get("balance_due"),
+                        "card_id": data.get("card_id")
+                    }
+                ],
+            }
+        }
+
+        r = requests.post(url, headers=square_headers(), json=params, timeout=15)
+        r.raise_for_status()
+
+        return jsonify(r.json()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    

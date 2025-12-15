@@ -14,18 +14,9 @@ from routes.square import square_bp
 from database.db import db
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
-from routes.calendar import sync_google_to_local
 from dotenv import load_dotenv
 
 load_dotenv()
-
-def start_scheduler(app):
-    scheduler = BackgroundScheduler()
-    def job():
-        with app.app_context():
-            sync_google_to_local()
-    scheduler.add_job(job, trigger="interval", minutes=1)
-    scheduler.start()
 
 def send_push_notification(token, title, body):
     message = {
@@ -42,8 +33,6 @@ def send_push_notification(token, title, body):
     return response.json()
 
 app = Flask(__name__)
-
-start_scheduler(app)
 
 # Configure CORS with environment-specific origins
 allowed_origins = os.environ.get('ALLOWED_ORIGINS', '*').split(',')

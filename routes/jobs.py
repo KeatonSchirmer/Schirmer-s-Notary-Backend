@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, session, send_file
-from datetime import datetime
+import datetime
 from database.db import db
 import smtplib
 from email.mime.text import MIMEText
@@ -9,7 +9,6 @@ from models.journal import PDF
 from models.accounts import Client
 from models.business import Finance, Mileage
 from models.bookings import Booking
-from routes.calendar import add_event_to_calendar
 
 jobs_bp = Blueprint('jobs', __name__)
 
@@ -165,7 +164,6 @@ def get_all_bookings():
         ]
     })
 
-#TODO: Need to integrate fixes to have notes not filled with other info
 @jobs_bp.route('/request', methods=['POST'])
 def request_booking():
     data = request.get_json()
@@ -186,23 +184,29 @@ def request_booking():
 
     service = data.get('service')
     urgency = data.get('urgency', 'normal')
-    date = data.get('date')
-    time = data.get('time')
+    date_str = data.get('date')
+    time_str = data.get('time')
     location = data.get('location', '')
     notes = data.get('notes', '')
     journal_id = data.get('journal_id')
 
-    print(f"client_id={client_id}, service={service}, date={date}, time={time}")
+    print(f"client_id={client_id}, service={service}, date={date_str}, time={time_str}")
 
-    if not all([client_id, service, date, time]):
+    if not all([client_id, service, date_str, time_str]):
         return jsonify({'error': 'Missing required fields'}), 400
+
+    try:
+        booking_date = datetime.strptime(date_str, "%Y-%m-%d")
+        booking_time = datetime.strptime(time_str, "%H:%M").time()
+    except ValueError as e:
+        return jsonify({'error': f'Invalid date/time format: {str(e)}'}), 400
 
     booking = Booking(
         client_id=client_id,
         service=service,
         urgency=urgency,
-        date=datetime.strptime(date, "%Y-%m-%d"),
-        time=datetime.strptime(time, "%H:%M").time(),
+        date=booking_date,
+        time=booking_time,
         location=location,
         notes=notes,
         journal_id=journal_id,
@@ -210,15 +214,18 @@ def request_booking():
     )
     db.session.add(booking)
     db.session.commit()
-    send_confirmation_email(email, name, service, date, time)
+    
+    send_confirmation_email(email, name, service, date_str, time_str)
 
+    # Push notification to client
     if client and getattr(client, "push_token", None):
         send_push_notification(
             client.push_token,
             "Booking Submitted",
-            f"Your booking for {service} on {date} at {time} was submitted."
+            f"Your booking for {service} on {date_str} at {time_str} was submitted."
         )
 
+    # Notify admins
     from models.accounts import Admin
     admins = Admin.query.all()
     for admin in admins:
@@ -226,9 +233,45 @@ def request_booking():
             send_push_notification(
                 admin.push_token,
                 "New Booking Request",
-                f"{name} submitted a booking for {service} on {date} at {time}."
+                f"{name} submitted a booking for {service} on {date_str} at {time_str}."
             )
-    return jsonify({"message": "Booking request submitted successfully", "booking_id": booking.id}), 201
+    
+    return jsonify({
+        "message": "Booking request submitted successfully",
+        "booking_id": booking.id
+    }), 201
+
+@jobs_bp.route('/availability/booked-slots', methods=['GET'])
+def get_booked_slots():
+    """Get all booked time slots for the next 30 days"""
+    try:
+        today = datetime.date.today()
+        end_date = today + datetime.timedelta(days=30)
+        
+        bookings = Booking.query.filter(
+            Booking.date >= today,
+            Booking.date <= end_date,
+            Booking.status.in_(['pending', 'accepted'])
+        ).all()
+        
+        booked_slots = []
+        for booking in bookings:
+            booked_slots.append({
+                'date': booking.date.isoformat() if booking.date else None,
+                'time': booking.time.strftime('%H:%M') if booking.time else None,
+                'duration': 60,
+                'client_name': booking.client.name if booking.client else 'Unknown',
+                'service': booking.service,
+                'status': booking.status
+            })
+        
+        return jsonify({'booked_slots': booked_slots}), 200
+        
+    except Exception as e:
+        print(f"Error fetching booked slots: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 @jobs_bp.route('/tempRequest', methods=['POST'])
 def temp_request_booking():
@@ -275,7 +318,6 @@ def accept_booking(booking_id):
     booking = Booking.query.get_or_404(booking_id)
     booking.status = "accepted"
     db.session.commit()
-    add_event_to_calendar(booking)
     return jsonify({"message": "Booking accepted", "id": booking.id}), 200
 
 @jobs_bp.route('/<int:booking_id>/deny', methods=['POST'])

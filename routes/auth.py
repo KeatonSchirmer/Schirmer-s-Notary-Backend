@@ -14,11 +14,7 @@ import traceback
 import os
 from google_auth_oauthlib.flow import Flow
 
-auth_bp = Blueprint('auth', __name__, template_folder='frontend/templates')
-
-GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
-GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET') 
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+auth_bp = Blueprint('auth', __name__)
 
 #! Gonna have them saved in database to allow for changing without redeploying
 SUBSCRIPTION_PLANS = {
@@ -454,117 +450,6 @@ def twofa_status():
     verified = session.get('twofa_verified', False)
     return {'twofa_verified': verified}, 200
 
-@auth_bp.route('/google/connect', methods=['GET'])
-def connect_google_calendar():
-    """Initiate Google Calendar OAuth flow"""
-    user_id = session.get('user_id')
-    user_type = session.get('user_type')
-    if not user_id or not user_type:
-        return jsonify({"message": "Not logged in"}), 401
-
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-        return jsonify({"error": "Google OAuth not configured"}), 500
-
-    try:
-        flow = Flow.from_client_config(
-            {
-                "web": {
-                    "client_id": GOOGLE_CLIENT_ID,
-                    "client_secret": GOOGLE_CLIENT_SECRET,
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "redirect_uris": [f"{os.environ.get('API_BASE_URL')}/auth/google/callback"]
-                }
-            },
-            scopes=SCOPES
-        )
-        
-        flow.redirect_uri = f"{os.environ.get('API_BASE_URL')}/auth/google/callback"
-        
-        authorization_url, state = flow.authorization_url(
-            access_type='offline',
-            include_granted_scopes='true',
-            state=f"{user_id}:{user_type}"
-        )
-        
-        return jsonify({"authorization_url": authorization_url}), 200
-        
-    except Exception as e:
-        return jsonify({"error": f"Failed to initiate OAuth: {str(e)}"}), 500
-
-@auth_bp.route('/google/callback', methods=['GET'])
-def google_callback():
-    """Handle Google OAuth callback"""
-    try:
-        state = request.args.get('state')
-        code = request.args.get('code')
-        
-        if not state or not code:
-            return jsonify({"error": "Missing state or code"}), 400
-            
-        user_id, user_type = state.split(':')
-        
-        flow = Flow.from_client_config(
-            {
-                "web": {
-                    "client_id": GOOGLE_CLIENT_ID,
-                    "client_secret": GOOGLE_CLIENT_SECRET,
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "redirect_uris": [f"{os.environ.get('API_BASE_URL')}/auth/google/callback"]
-                }
-            },
-            scopes=SCOPES
-        )
-        
-        flow.redirect_uri = f"{os.environ.get('API_BASE_URL')}/auth/google/callback"
-        flow.fetch_token(code=code)
-        
-        credentials = flow.credentials
-        
-        if user_type == 'admin':
-            user = Admin.query.get(user_id)
-        else:
-            user = Client.query.get(user_id)
-            
-        if user:
-            user.google_access_token = credentials.token
-            user.google_refresh_token = credentials.refresh_token
-            user.google_token_expires = credentials.expiry
-            user.google_calendar_connected = True
-            db.session.commit()
-            
-        return jsonify({"message": "Google Calendar connected successfully"}), 200
-        
-    except Exception as e:
-        return jsonify({"error": f"OAuth callback failed: {str(e)}"}), 500
-
-@auth_bp.route('/google/disconnect', methods=['POST'])
-def disconnect_google_calendar():
-    """Disconnect Google Calendar"""
-    user_id = session.get('user_id')
-    user_type = session.get('user_type')
-    if not user_id or not user_type:
-        return jsonify({"message": "Not logged in"}), 401
-
-    try:
-        if user_type == 'admin':
-            user = Admin.query.get(user_id)
-        else:
-            user = Client.query.get(user_id)
-            
-        if user:
-            user.google_access_token = None
-            user.google_refresh_token = None
-            user.google_token_expires = None
-            user.google_calendar_connected = False
-            db.session.commit()
-            
-        return jsonify({"message": "Google Calendar disconnected"}), 200
-        
-    except Exception as e:
-        return jsonify({"error": f"Failed to disconnect: {str(e)}"}), 500
- 
 @auth_bp.route('/preferences', methods=['GET'])
 def get_user_preferences():
     """Get user preferences"""
@@ -779,7 +664,6 @@ def get_admin_stats():
         return jsonify({"error": "Admin access required"}), 403
     
     try:
-        # Get stats from database
         total_users = Client.query.count() + Admin.query.count()
         total_admins = Admin.query.count()
         total_clients = Client.query.count()
@@ -787,11 +671,9 @@ def get_admin_stats():
         pending_jobs = Booking.query.filter_by(status='pending').count()
         completed_jobs = Booking.query.filter_by(status='completed').count()
         
-        # Calculate total revenue (basic calculation - needs Finance model integration)
         completed_bookings = Booking.query.filter_by(status='completed').all()
         total_revenue = 0.0
         for booking in completed_bookings:
-            # Check if booking has associated finance records
             if booking.finances:
                 for finance in booking.finances:
                     total_revenue += float(getattr(finance, 'amount', 0) or 0)
@@ -1573,6 +1455,8 @@ def update_office_info():
             office.office_end = data['office_end']
         if 'available_days' in data:
             office.available_days = data['available_days']
+        if 'available_days_json' in data:
+            office.available_days_json = data['available_days_json']
             
         db.session.commit()
         
@@ -1583,7 +1467,8 @@ def update_office_info():
             "email": office.email,
             "office_start": office.office_start,
             "office_end": office.office_end,
-            "available_days": office.available_days
+            "available_days": office.available_days,
+            "available_days_json": office.available_days_json
         }
         
         return jsonify({
@@ -1595,7 +1480,6 @@ def update_office_info():
         db.session.rollback()
         print(f"Error updating office info: {e}")
         return jsonify({"error": "Failed to update office info"}), 500
-
 
 #* ========== SERVICE MANAGEMENT ENDPOINTS ===========
 
@@ -1715,3 +1599,184 @@ def delete_subscription(sub_id):
     db.session.commit()
     return jsonify({'message': 'Subscription deleted'})
 
+#* ========== PRICING POLICY ENDPOINTS ===========
+
+@auth_bp.route('/admin/pricing-policy', methods=['GET'])
+def get_pricing_policy():
+    """Get current active pricing policy"""
+    try:
+        from models.system import PricingPolicy
+        
+        pricing = PricingPolicy.query.filter_by(is_active=True).order_by(PricingPolicy.id.desc()).first()
+        
+        if not pricing:
+            return jsonify({
+                "pricing_policy": {
+                    "base_notary_fee": "30.00",
+                    "base_travel_fee": "20.00",
+                    "free_travel_miles": "15",
+                    "additional_mile_rate": "1.00",
+                    "additional_signer_fee": "10.00",
+                    "rush_fee_same_day": "15.00",
+                    "rush_fee_emergency": "25.00",
+                    "rush_fee_holiday": "35.00",
+                    "loan_signing_flat_rate": "150.00",
+                    "loan_signing_rush_fee": "25.00",
+                    "ron_base_fee": "30.00",
+                    "ron_rush_fee": "15.00",
+                    "document_printing_per_page": "2.00",
+                    "document_scanning_fee": "5.00",
+                    "waiting_time_fee": "10.00",
+                    "cancellation_fee": "25.00",
+                    "is_active": True
+                }
+            }), 200
+        
+        return jsonify({
+            "pricing_policy": {
+                "id": pricing.id,
+                "base_notary_fee": str(pricing.base_notary_fee),
+                "base_travel_fee": str(pricing.base_travel_fee),
+                "free_travel_miles": str(pricing.free_travel_miles),
+                "additional_mile_rate": str(pricing.additional_mile_rate),
+                "additional_signer_fee": str(pricing.additional_signer_fee),
+                "rush_fee_same_day": str(pricing.rush_fee_same_day),
+                "rush_fee_emergency": str(pricing.rush_fee_emergency),
+                "rush_fee_holiday": str(pricing.rush_fee_holiday),
+                "loan_signing_flat_rate": str(pricing.loan_signing_flat_rate),
+                "loan_signing_rush_fee": str(pricing.loan_signing_rush_fee),
+                "ron_base_fee": str(pricing.ron_base_fee),
+                "ron_rush_fee": str(pricing.ron_rush_fee),
+                "document_printing_per_page": str(pricing.document_printing_per_page),
+                "document_scanning_fee": str(pricing.document_scanning_fee),
+                "waiting_time_fee": str(pricing.waiting_time_fee),
+                "cancellation_fee": str(pricing.cancellation_fee),
+                "is_active": pricing.is_active,
+                "created_at": pricing.created_at.isoformat() if pricing.created_at else None,
+                "updated_at": pricing.updated_at.isoformat() if pricing.updated_at else None
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching pricing policy: {e}")
+        traceback.print_exc()
+        return jsonify({"error": "Failed to fetch pricing policy"}), 500
+
+@auth_bp.route('/admin/pricing-policy', methods=['PUT'])
+def update_pricing_policy():
+    """Update pricing policy (CEO only)"""
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({"error": "CEO access required"}), 403
+    
+    try:
+        from models.system import PricingPolicy
+        data = request.get_json()
+        
+        PricingPolicy.query.update({"is_active": False})
+        
+        new_pricing = PricingPolicy(
+            base_notary_fee=float(data.get('base_notary_fee', 30.00)),
+            base_travel_fee=float(data.get('base_travel_fee', 20.00)),
+            free_travel_miles=int(data.get('free_travel_miles', 15)),
+            additional_mile_rate=float(data.get('additional_mile_rate', 1.00)),
+            additional_signer_fee=float(data.get('additional_signer_fee', 10.00)),
+            rush_fee_same_day=float(data.get('rush_fee_same_day', 15.00)),
+            rush_fee_emergency=float(data.get('rush_fee_emergency', 25.00)),
+            rush_fee_holiday=float(data.get('rush_fee_holiday', 35.00)),
+            loan_signing_flat_rate=float(data.get('loan_signing_flat_rate', 150.00)),
+            loan_signing_rush_fee=float(data.get('loan_signing_rush_fee', 25.00)),
+            ron_base_fee=float(data.get('ron_base_fee', 30.00)),
+            ron_rush_fee=float(data.get('ron_rush_fee', 15.00)),
+            document_printing_per_page=float(data.get('document_printing_per_page', 2.00)),
+            document_scanning_fee=float(data.get('document_scanning_fee', 5.00)),
+            waiting_time_fee=float(data.get('waiting_time_fee', 10.00)),
+            cancellation_fee=float(data.get('cancellation_fee', 25.00)),
+            is_active=True
+        )
+        
+        db.session.add(new_pricing)
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Pricing policy updated successfully",
+            "pricing_policy": {
+                "id": new_pricing.id,
+                "base_notary_fee": str(new_pricing.base_notary_fee),
+                "base_travel_fee": str(new_pricing.base_travel_fee),
+                "free_travel_miles": str(new_pricing.free_travel_miles),
+                "additional_mile_rate": str(new_pricing.additional_mile_rate),
+                "additional_signer_fee": str(new_pricing.additional_signer_fee)
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating pricing policy: {e}")
+        traceback.print_exc()
+        return jsonify({"error": "Failed to update pricing policy"}), 500
+
+@auth_bp.route('/admin/pricing-policy/history', methods=['GET'])
+def get_pricing_policy_history():
+    """Get pricing policy history (CEO only)"""
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({"error": "CEO access required"}), 403
+    
+    try:
+        from models.system import PricingPolicy
+        
+        policies = PricingPolicy.query.order_by(PricingPolicy.created_at.desc()).limit(10).all()
+        
+        return jsonify({
+            "pricing_history": [
+                {
+                    "id": p.id,
+                    "base_notary_fee": str(p.base_notary_fee),
+                    "base_travel_fee": str(p.base_travel_fee),
+                    "free_travel_miles": p.free_travel_miles,
+                    "is_active": p.is_active,
+                    "created_at": p.created_at.isoformat() if p.created_at else None,
+                    "updated_at": p.updated_at.isoformat() if p.updated_at else None
+                }
+                for p in policies
+            ]
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching pricing history: {e}")
+        traceback.print_exc()
+        return jsonify({"error": "Failed to fetch pricing history"}), 500
+
+@auth_bp.route('/admin/pricing-policy/<int:policy_id>/activate', methods=['POST'])
+def activate_pricing_policy(policy_id):
+    """Activate a specific pricing policy (CEO only)"""
+    admin_id = require_ceo()
+    if not admin_id:
+        return jsonify({"error": "CEO access required"}), 403
+    
+    try:
+        from models.system import PricingPolicy
+        
+        PricingPolicy.query.update({"is_active": False})
+        
+        policy = PricingPolicy.query.get(policy_id)
+        if not policy:
+            return jsonify({"error": "Pricing policy not found"}), 404
+            
+        policy.is_active = True
+        policy.updated_at = datetime.datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Pricing policy activated successfully",
+            "policy_id": policy_id
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error activating pricing policy: {e}")
+        traceback.print_exc()
+        return jsonify({"error": "Failed to activate pricing policy"}), 500
+    
