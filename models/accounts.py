@@ -44,6 +44,13 @@ class Company(db.Model):
     address = db.Column(db.String(255))
     contact_points = db.relationship('Client', back_populates='company', lazy=True)
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "address": self.address
+        }
+
     def __repr__(self):
         return f"<Company {self.name}>"
 

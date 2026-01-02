@@ -317,7 +317,7 @@ def view_profile():
             "email": user.email,
             "address": user.address,
             "phone": user.phone,
-            "company": user.company,
+            "company": user.company.to_dict() if user.company else None,
             "two_factor_enabled": user.two_factor_enabled
         })
     else: return jsonify({"message": "Unknown user type"}), 400
